@@ -16,11 +16,21 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
@@ -125,7 +135,7 @@ public class MainActivity extends AppCompatActivity {
             Log.wtf(TAG, "you moron!");
             return;
         }
-        Log.d(TAG, "got json: " + json);
+        //Log.d(TAG, "got json: " + json);
         String url = "http://192.168.26.25:8080";
 
 		//new UploadTask(url, json).execute();
@@ -133,18 +143,70 @@ public class MainActivity extends AppCompatActivity {
     }
 
 	private void sendForReal(String dest, String json) throws IOException {
-        URL url = new URL(dest);
-        HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
-        try {
-            urlConnection.setDoOutput(true);
-            //urlConnection.setChunkedStreamingMode(0);
-            OutputStream out = new BufferedOutputStream(urlConnection.getOutputStream());
-            Log.d(TAG, "sending: " + json);
-            out.write(json.getBytes());
-        } finally {
-            urlConnection.disconnect();
-        }
+
+		int TIMEOUT_MILLISEC = 10000;  // = 10 seconds
+		HttpParams httpParams = new BasicHttpParams();
+		HttpConnectionParams.setConnectionTimeout(httpParams, TIMEOUT_MILLISEC);
+		HttpConnectionParams.setSoTimeout(httpParams, TIMEOUT_MILLISEC);
+		HttpClient client = new DefaultHttpClient(httpParams);
+
+		HttpPost request = new HttpPost(dest);
+		request.setEntity(new ByteArrayEntity(json.getBytes("UTF8")));
+
+		client.execute(request);
+		//HttpResponse response = client.execute(request);
+
+
+        //URL url = new URL(dest);
+        //HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        //try {
+        //    conn.setConnectTimeout(5000);
+        //    conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+        //    conn.setDoOutput(true);
+        //    //conn.setRequestProperty("Content-Type", "application/json");
+        //    //con.setRequestProperty("Accept", "application/json");
+        //    conn.setRequestMethod("POST");
+        //    //conn.setChunkedStreamingMode(0);
+        //    //OutputStream out = new BufferedOutputStream(conn.getOutputStream());
+        //    OutputStream out = conn.getOutputStream();
+        //    Log.d(TAG, "sending '" + json + "' to " + dest);
+        //    out.write(json.getBytes("UTF-8"));
+        //    out.close();
+
+        //    //InputStream in = new BufferedInputStream(conn.getInputStream());
+		//	//String response = getStr(in);
+		//	//Log.d(TAG, "got response from server: " + response);
+        //} finally {
+        //    conn.disconnect();
+        //}
     }
+
+	private static String getStr(InputStream is) {
+		BufferedReader br = null;
+		StringBuilder sb = new StringBuilder();
+
+		String line;
+		try {
+			br = new BufferedReader(new InputStreamReader(is));
+			while ((line = br.readLine()) != null) {
+				sb.append(line);
+			}
+
+		} catch (IOException e) {
+			e.printStackTrace();
+		} finally {
+			if (br != null) {
+				try {
+					br.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+		return sb.toString();
+
+	}
 
     private class UploadTask extends AsyncTask<Void, Void, Void> {
         private String url;
