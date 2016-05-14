@@ -2,6 +2,7 @@ package com.jacobobryant.playlistuploader;
 
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.provider.MediaStore;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.CursorLoader;
@@ -15,6 +16,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.apache.http.params.HttpConnectionParams;
+import org.apache.http.params.HttpParams;
+
+import java.io.BufferedOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -107,13 +117,55 @@ public class MainActivity extends AppCompatActivity {
         object.put("playlists", playlists);
         String json;
         try {
+            //Map<String, Object> testObject = new HashMap<>();
+            //testObject.put("foobar", "baz");
+            //json = new ObjectMapper().writeValueAsString(testObject);
             json = new ObjectMapper().writeValueAsString(object);
         } catch (JsonProcessingException e) {
             Log.wtf(TAG, "you moron!");
             return;
         }
         Log.d(TAG, "got json: " + json);
+        String url = "http://192.168.26.25:8080";
+
+		//new UploadTask(url, json).execute();
+		new UploadTask(url, json).execute();
     }
+
+	private void sendForReal(String dest, String json) throws IOException {
+        URL url = new URL(dest);
+        HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
+        try {
+            urlConnection.setDoOutput(true);
+            //urlConnection.setChunkedStreamingMode(0);
+            OutputStream out = new BufferedOutputStream(urlConnection.getOutputStream());
+            Log.d(TAG, "sending: " + json);
+            out.write(json.getBytes());
+        } finally {
+            urlConnection.disconnect();
+        }
+    }
+
+    private class UploadTask extends AsyncTask<Void, Void, Void> {
+        private String url;
+        private String json;
+
+        public UploadTask(String url, String json) {
+            this.url = url;
+            this.json = json;
+        }
+
+        @Override
+        protected Void doInBackground(Void... urls) {
+            try {
+                sendForReal(url, json);
+            } catch (IOException e) {
+                Log.e(TAG, "error while uploading json", e);
+            }
+            return null;
+        }
+    }
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
