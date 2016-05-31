@@ -66,7 +66,6 @@ public class MainActivity extends AppCompatActivity {
             cursor.moveToPosition(-1);
             while (cursor.moveToNext()) {
                 int id = cursor.getInt(0);
-                //Log.d(TAG, "playlist id: " + id);
                 Bundle args = new Bundle();
                 args.putInt(KEY_ID, id);
                 getSupportLoaderManager().initLoader(songLoaderId++, args, songLoader);
@@ -92,78 +91,6 @@ public class MainActivity extends AppCompatActivity {
                         MediaStore.Audio.Playlists.Members.getContentUri("external", playlistId),
                         SONG_PROJ, null, null, null);
         }
-
-        //public List<String> makeQueries(Cursor cursor) {
-        //    List<String> queries = new ArrayList<>();
-        //    cursor.moveToPosition(-1);
-        //    while (cursor.moveToNext()) {
-        //        StringBuilder query = new StringBuilder();
-        //        query.append("<QUERIES><AUTH><CLIENT>");
-        //        query.append(ApiKeys.GN_CLIENT_AUTH);
-        //        query.append("</CLIENT><USER>");
-        //        query.append(ApiKeys.GN_USER_ID);
-        //        query.append("</USER></AUTH>");
-        //        query.append("<QUERY CMD=\"ALBUM_SEARCH\"><MODE>SINGLE_BEST</MODE>");
-        //        String track = cursor.getString(1);
-        //        String artist = cursor.getString(2);
-        //        String album = cursor.getString(3);
-        //        if (!artist.equals("")) {
-        //            query.append("<TEXT TYPE=\"ARTIST\">" + StringEscapeUtils.escapeXml10(artist) + "</TEXT>");
-        //        }
-        //        if (!track.equals("")) {
-        //            query.append("<TEXT TYPE=\"TRACK_TITLE\">" + StringEscapeUtils.escapeXml10(track) + "</TEXT>");
-        //        }
-        //        if (!album.equals("")) {
-        //            query.append("<TEXT TYPE=\"ALBUM_TITLE\">" + StringEscapeUtils.escapeXml10(album) + "</TEXT>");
-        //        }
-        //        query.append("</QUERY></QUERIES>");
-        //        queries.add(query.toString());
-        //    }
-        //    return queries;
-        //}
-
-        //private List<String> postQueries(List<String> queries) throws IOException {
-        //    final String url = "https://" + ApiKeys.GN_CLIENT_ID + ".web.cddbp.net/webapi/xml/1.0/";
-        //    URL u;
-        //    try {
-        //        u = new URL(url);
-        //    } catch (MalformedURLException e) {
-        //        throw new RuntimeException(e);
-        //    }
-        //    List<String> ids = new ArrayList<>();
-        //    for (String query : queries) {
-        //        HttpURLConnection connection = (HttpURLConnection) u.openConnection();
-        //        connection.setDoOutput(true);
-        //        connection.setDoInput(true);
-        //        connection.setInstanceFollowRedirects(false);
-        //        connection.setRequestMethod("POST");
-        //        connection.setRequestProperty("Content-Type", "text/plain");
-        //        connection.setRequestProperty("Charset", "utf-8");
-        //        connection.setRequestProperty("Content-Length", "" + Integer.toString(query.getBytes().length));
-        //        connection.setUseCaches(false);
-
-        //        BufferedWriter wr = new BufferedWriter(new OutputStreamWriter(connection.getOutputStream(), "UTF-8"));
-        //        wr.write(query);
-        //        wr.flush(); wr.close();
-
-        //        StringBuffer output = new StringBuffer();
-        //        BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));
-
-        //        String line;
-        //        while ((line = reader.readLine()) != null) { output.append(line); }
-
-        //        reader.close();
-        //        connection.disconnect();
-
-        //        ids.add(getId(output.toString()));
-        //    }
-        //    return ids;
-        //}
-
-        //public String getId(String xml) {
-
-        //    return "foobar";
-        //}
 
         @Override
         public void onLoadFinished(Loader<Cursor> loader, Cursor cursor) {
@@ -204,89 +131,6 @@ public class MainActivity extends AppCompatActivity {
                     return this;
                 }
             }.init(cursor, playlists, loadersRunning).start();
-            
-            //cursor.moveToPosition(-1);
-            //List<GetSongIdTask> tasks = new ArrayList<>();
-            //while (cursor.moveToNext()) {
-            //    String title = cursor.getString(1);
-            //    String artist = cursor.getString(2);
-            //    String album = cursor.getString(3);
-            //    GetSongIdTask task = new GetSongIdTask(artist, album, title);
-            //    tasks.add(task);
-            //    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            //        task.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
-            //    } else {
-            //        task.execute();
-            //    }
-            //    //Thread thread = new Thread() {
-            //    //    private String title;
-            //    //    private String artist;
-            //    //    private String album;
-
-            //    //    private Thread init(String title, String artist, String album) {
-            //    //        this.title = title;
-            //    //        this.artist = artist;
-            //    //        this.album = album;
-            //    //        return this;
-            //    //    }
-
-            //    //    public void run() {
-            //    //        try {
-            //    //            GracenoteMetadata results = api.searchTrack(this.artist, this.album, this.title);
-            //    //            songs.add("foobar");
-            //    //            Log.d(TAG, "Got results successfully");
-            //    //        } catch (GracenoteException e) {
-            //    //            Log.w(TAG, "Couldn't get song data for " + this.artist + "; " +
-            //    //                    this.album + "; " + this.title, e);
-            //    //        }
-            //    //    }
-            //    //}.init(title, artist, album);
-            //    //new UploadTask(url, json).execute();
-
-            //    //threads.add(thread);
-            //    //thread.start();
-            //    //ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            //    //System.setOut(new PrintStream(baos));
-            //    ////String trackId = results
-            //    //results.print();
-            //    //Log.d(TAG, baos.toString());
-            //}
-            //new Thread() {
-            //    private List<GetSongIdTask> tasks;
-            //    private List<Object> playlists;
-            //    private AtomicInteger loadersRunning;
-
-            //    public void run() {
-            //        List<String> songs = new ArrayList<>();
-            //        for (GetSongIdTask task : tasks) {
-            //            try {
-            //                task.get();
-            //                String id = "foo";
-            //                if (id != null) {
-            //                    songs.add(id);
-            //                }
-            //            } catch (ExecutionException | InterruptedException e) {
-            //                Log.d(TAG, "", e);
-            //            }
-            //        }
-            //        Log.d(TAG, "got " + songs.size() + " songs from playlist");
-            //        playlists.add(songs);
-            //        int loaders = loadersRunning.decrementAndGet();
-            //        if (loaders == 0) {
-            //            send();
-            //        }
-
-            //    }
-
-            //    public Thread init(List<GetSongIdTask> tasks, List<Object> playlists, AtomicInteger loadersRunning) {
-            //        this.tasks = tasks;
-            //        this.playlists = playlists;
-            //        this.loadersRunning = loadersRunning;
-            //        return this;
-            //    }
-            //}.init(tasks, playlists, loadersRunning).start();
-            ////    }
-            ////}.start();
         }
 
         @Override
@@ -328,31 +172,6 @@ public class MainActivity extends AppCompatActivity {
         request.setEntity(new ByteArrayEntity(json.getBytes("UTF8")));
 
         client.execute(request);
-        //HttpResponse response = client.execute(request);
-
-
-        //URL url = new URL(dest);
-        //HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        //try {
-        //    conn.setConnectTimeout(5000);
-        //    conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-        //    conn.setDoOutput(true);
-        //    //conn.setRequestProperty("Content-Type", "application/json");
-        //    //con.setRequestProperty("Accept", "application/json");
-        //    conn.setRequestMethod("POST");
-        //    //conn.setChunkedStreamingMode(0);
-        //    //OutputStream out = new BufferedOutputStream(conn.getOutputStream());
-        //    OutputStream out = conn.getOutputStream();
-        //    Log.d(TAG, "sending '" + json + "' to " + dest);
-        //    out.write(json.getBytes("UTF-8"));
-        //    out.close();
-
-        //    //InputStream in = new BufferedInputStream(conn.getInputStream());
-        //    //String response = getStr(in);
-        //    //Log.d(TAG, "got response from server: " + response);
-        //} finally {
-        //    conn.disconnect();
-        //}
     }
 
     private static String getStr(InputStream is) {
@@ -442,18 +261,5 @@ public class MainActivity extends AppCompatActivity {
 
     public void upload(View v) {
         getSupportLoaderManager().initLoader(PLAYLIST_LOADER, null, new PlaylistLoader());
-        //new Thread() {
-        //    public void run() {
-        //        try {
-        //            String album = "The Sufferer & The Witness";
-        //            String escapedAlbum = StringEscapeUtils.escapeXml10(album);
-        //            Log.d(TAG, "escapedAlbum: " + escapedAlbum);
-        //            GracenoteMetadata results = api.searchTrack("Rise Against", escapedAlbum, "Ready To Fall");
-        //            Log.d(TAG, "Got results successfully");
-        //        } catch (GracenoteException e) {
-        //            Log.w(TAG, "Couldn't get song data:", e);
-        //        }
-        //    }
-        //}.start();
     }
 }
