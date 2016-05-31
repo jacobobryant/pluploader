@@ -142,6 +142,7 @@ public class GracenoteWebAPI
     // Performs a HTTP POST request and returns the response as a string.
     protected String _httpPostRequest(String url, String data)
     {
+        Log.d("PlaylistUploader", data);
         try
         {
             URL u = new URL(url); 

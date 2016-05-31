@@ -27,11 +27,11 @@ public class GracenoteMetadata
             Map<String, Object> albumData = new HashMap<String, Object>();
 
             // If there's no GOET data, do a fetch to get the full information instead.
-            if (this._getTextValue(e, "ARTIST_ORIGIN") == null)
-            {
-                xml = api.fetchAlbumWithoutParsing(this._getTextValue(e, "GN_ID"));
-                e   = xml.getDocumentElement();
-            }
+            //if (this._getTextValue(e, "ARTIST_ORIGIN") == null)
+            //{
+            //    xml = api.fetchAlbumWithoutParsing(this._getTextValue(e, "GN_ID"));
+            //    e   = xml.getDocumentElement();
+            //}
 
             // Album metadata
             albumData.put("album_gnid",        this._getTextValue(e, "GN_ID"));
