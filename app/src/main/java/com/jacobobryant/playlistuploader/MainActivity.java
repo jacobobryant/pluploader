@@ -1,5 +1,6 @@
 package com.jacobobryant.playlistuploader;
 
+import android.content.Context;
 import android.database.Cursor;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -23,9 +24,13 @@ import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,9 +47,46 @@ public class MainActivity extends AppCompatActivity {
     public static final int PLAYLIST_LOADER = 0;
     public static final int SONG_LOADER = 1;
     public static final String KEY_ID = "id";
+    public static final String CACHE_FILE = "track_id_cache";
     private List<Object> playlists = Collections.synchronizedList(new ArrayList<Object>());
     private AtomicInteger loadersRunning;
     private GracenoteWebAPI api;
+    private Map<Metadata, String> cachedIds;
+
+    public class Metadata {
+        public String artist;
+        public String album;
+        public String track;
+
+        public Metadata(String artist, String album, String track) {
+            this.artist = artist;
+            this.album = album;
+            this.track = track;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Metadata metadata = (Metadata) o;
+
+            if (artist != null ? !artist.equals(metadata.artist) : metadata.artist != null)
+                return false;
+            if (album != null ? !album.equals(metadata.album) : metadata.album != null)
+                return false;
+            return track != null ? track.equals(metadata.track) : metadata.track == null;
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = artist != null ? artist.hashCode() : 0;
+            result = 31 * result + (album != null ? album.hashCode() : 0);
+            result = 31 * result + (track != null ? track.hashCode() : 0);
+            return result;
+        }
+    }
 
     private class PlaylistLoader implements LoaderManager.LoaderCallbacks<Cursor> {
 
@@ -107,8 +149,7 @@ public class MainActivity extends AppCompatActivity {
                         String artist = cursor.getString(2);
                         String album = cursor.getString(3);
                         try {
-                            GracenoteMetadata results = api.searchTrack(artist, album, title);
-                            String trackId = (String) results.getAlbums().get(0).get("track_gn_id");
+                            String trackId = getTrackId(artist, album, title);
                             Log.d(TAG, trackId + " " + title + ";" + artist + ";" + album);
                             songs.add(trackId);
                         } catch (GracenoteException e) {
@@ -119,8 +160,8 @@ public class MainActivity extends AppCompatActivity {
                         playlists.add(songs);
                     }
                     if (loadersRunning.decrementAndGet() == 0) {
-                        //send();
                         Log.d(TAG, "got all playlists");
+                        //send();
                     }
                 }
 
@@ -137,6 +178,16 @@ public class MainActivity extends AppCompatActivity {
         public void onLoaderReset(Loader<Cursor> loader) { }
     }
 
+    public String getTrackId(String artist, String album, String title) throws GracenoteException {
+        Metadata m = new Metadata(artist, album, title);
+        if (cachedIds.containsKey(m)) {
+            return cachedIds.get(m);
+        }
+        GracenoteMetadata results = api.searchTrack(artist, album, title);
+        String trackId = (String) results.getAlbum(0).get("track_gn_id");
+        cachedIds.put(m, trackId);
+        return trackId;
+    }
 
 
     private void send() {
@@ -249,9 +300,33 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        try {
+            FileOutputStream fout = openFileOutput(CACHE_FILE, Context.MODE_PRIVATE);
+            ObjectOutputStream oos = new ObjectOutputStream(fout);
+            oos.writeObject(cachedIds);
+            oos.close();
+            fout.close();
+        } catch (IOException e) {
+            Log.e(TAG, "well this sucks (couldn't save cached data)", e);
+        }
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        try {
+            FileInputStream fin = openFileInput(CACHE_FILE);
+            ObjectInputStream ois = new ObjectInputStream(fin);
+            cachedIds = (Map<Metadata, String>) ois.readObject();
+            ois.close();
+            fin.close();
+        } catch (IOException | ClassNotFoundException e) {
+            Log.e(TAG, "well this sucks (couldn't load cached data)", e);
+            cachedIds = new HashMap<>();
+        }
         try {
             api = new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG, ApiKeys.GN_USER_ID);
         } catch (GracenoteException e) {
