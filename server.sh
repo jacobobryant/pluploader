@@ -8,4 +8,5 @@ serve
 while true; do
     echo
     serve
+    sleep 1
 done

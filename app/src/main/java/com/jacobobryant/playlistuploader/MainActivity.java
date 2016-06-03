@@ -16,7 +16,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.params.BasicHttpParams;
@@ -53,40 +53,6 @@ public class MainActivity extends AppCompatActivity {
     private GracenoteWebAPI api;
     private Map<Metadata, String> cachedIds;
 
-    public class Metadata {
-        public String artist;
-        public String album;
-        public String track;
-
-        public Metadata(String artist, String album, String track) {
-            this.artist = artist;
-            this.album = album;
-            this.track = track;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Metadata metadata = (Metadata) o;
-
-            if (artist != null ? !artist.equals(metadata.artist) : metadata.artist != null)
-                return false;
-            if (album != null ? !album.equals(metadata.album) : metadata.album != null)
-                return false;
-            return track != null ? track.equals(metadata.track) : metadata.track == null;
-
-        }
-
-        @Override
-        public int hashCode() {
-            int result = artist != null ? artist.hashCode() : 0;
-            result = 31 * result + (album != null ? album.hashCode() : 0);
-            result = 31 * result + (track != null ? track.hashCode() : 0);
-            return result;
-        }
-    }
 
     private class PlaylistLoader implements LoaderManager.LoaderCallbacks<Cursor> {
 
@@ -150,7 +116,6 @@ public class MainActivity extends AppCompatActivity {
                         String album = cursor.getString(3);
                         try {
                             String trackId = getTrackId(artist, album, title);
-                            Log.d(TAG, trackId + " " + title + ";" + artist + ";" + album);
                             songs.add(trackId);
                         } catch (GracenoteException e) {
                             Log.e(TAG, "Couldn't get Gracenote IDs for " + title, e);
@@ -161,7 +126,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                     if (loadersRunning.decrementAndGet() == 0) {
                         Log.d(TAG, "got all playlists");
-                        //send();
+                        send();
                     }
                 }
 
@@ -206,7 +171,8 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         //Log.d(TAG, "got json: " + json);
-        String url = "http://192.168.26.25:8080";
+        //String url = "http://192.168.26.25:8080";
+        String url = "http://192.168.1.222:8080";
 
         new UploadTask(url, json).execute();
     }
@@ -219,7 +185,8 @@ public class MainActivity extends AppCompatActivity {
         HttpConnectionParams.setSoTimeout(httpParams, TIMEOUT_MILLISEC);
         HttpClient client = new DefaultHttpClient(httpParams);
 
-        HttpPost request = new HttpPost(dest);
+        //HttpPost request = new HttpPost(dest);
+        HttpGet request = new HttpGet(dest);
         request.setEntity(new ByteArrayEntity(json.getBytes("UTF8")));
 
         client.execute(request);
@@ -305,7 +272,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             FileOutputStream fout = openFileOutput(CACHE_FILE, Context.MODE_PRIVATE);
             ObjectOutputStream oos = new ObjectOutputStream(fout);
-            oos.writeObject(cachedIds);
+            oos.writeObject((HashMap) cachedIds);
             oos.close();
             fout.close();
         } catch (IOException e) {
@@ -320,7 +287,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             FileInputStream fin = openFileInput(CACHE_FILE);
             ObjectInputStream ois = new ObjectInputStream(fin);
-            cachedIds = (Map<Metadata, String>) ois.readObject();
+            cachedIds = (HashMap<Metadata, String>) ois.readObject();
             ois.close();
             fin.close();
         } catch (IOException | ClassNotFoundException e) {
