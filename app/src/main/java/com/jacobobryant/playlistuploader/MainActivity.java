@@ -16,12 +16,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
+import org.apache.http.protocol.HTTP;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -185,8 +186,9 @@ public class MainActivity extends AppCompatActivity {
         HttpConnectionParams.setSoTimeout(httpParams, TIMEOUT_MILLISEC);
         HttpClient client = new DefaultHttpClient(httpParams);
 
-        //HttpPost request = new HttpPost(dest);
-        HttpGet request = new HttpGet(dest);
+        HttpPost request = new HttpPost(dest);
+        request.setHeader(HTTP.CONTENT_TYPE, "application/json");
+        //HttpGet request = new HttpGet(dest);
         request.setEntity(new ByteArrayEntity(json.getBytes("UTF8")));
 
         client.execute(request);
