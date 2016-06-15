@@ -1,6 +1,7 @@
 package com.jacobobryant.playlistuploader;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -32,6 +33,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,7 +57,7 @@ public class MainActivity extends AppCompatActivity {
     private AtomicInteger loadersRunning;
     private GracenoteWebAPI api;
     private Map<Metadata, String> cachedIds;
-
+    private int userId;
 
     private class PlaylistLoader implements LoaderManager.LoaderCallbacks<Cursor> {
 
@@ -159,21 +163,16 @@ public class MainActivity extends AppCompatActivity {
     private void send() {
         Log.d(TAG, "reporting to the mother ship");
         Map<String, Object> object = new HashMap<>();
-        object.put("id", "my unique id");
+        object.put("id", this.userId);
         object.put("playlists", playlists);
         String json;
         try {
-            //Map<String, Object> testObject = new HashMap<>();
-            //testObject.put("foobar", "baz");
-            //json = new ObjectMapper().writeValueAsString(testObject);
             json = new ObjectMapper().writeValueAsString(object);
         } catch (JsonProcessingException e) {
             Log.wtf(TAG, "you moron!");
             return;
         }
-        //Log.d(TAG, "got json: " + json);
-        //String url = "http://192.168.26.25:8080";
-        String url = "http://192.168.1.222:8080";
+        String url = "http://192.168.1.222:6666/upload";
 
         new UploadTask(url, json).execute();
     }
@@ -188,7 +187,6 @@ public class MainActivity extends AppCompatActivity {
 
         HttpPost request = new HttpPost(dest);
         request.setHeader(HTTP.CONTENT_TYPE, "application/json");
-        //HttpGet request = new HttpGet(dest);
         request.setEntity(new ByteArrayEntity(json.getBytes("UTF8")));
 
         client.execute(request);
@@ -263,7 +261,6 @@ public class MainActivity extends AppCompatActivity {
                         this.album + "; " + this.title, e);
                 Log.d(TAG, "Didn't get results successfully");
                 return "ohno";
-
             }
         }
     }
@@ -304,6 +301,56 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void upload(View v) {
-        getSupportLoaderManager().initLoader(PLAYLIST_LOADER, null, new PlaylistLoader());
+        new RegisterTask().execute();
+    }
+
+    private class RegisterTask extends AsyncTask<Void, Void, Integer> {
+
+        @Override
+        protected Integer doInBackground(Void... foo) {
+            SharedPreferences settings = getPreferences(Context.MODE_PRIVATE);
+            int userId = settings.getInt("user_id", -1);
+            if (userId != -1) {
+                return userId;
+            }
+            try {
+                userId = register();
+            } catch (IOException e) {
+                Log.e(TAG, "couldn't register", e);
+                return -1;
+            }
+            SharedPreferences.Editor editor = settings.edit();
+            editor.putInt("user_id", userId);
+            editor.commit();
+            return userId;
+        }
+
+        @Override
+        protected void onPostExecute(Integer userId) {
+            Log.d(TAG, "userId: " + userId);
+            MainActivity.this.userId = userId;
+            if (userId != -1) {
+                getSupportLoaderManager().initLoader(PLAYLIST_LOADER, null, new PlaylistLoader());
+            }
+        }
+
+        public int register() throws IOException {
+            StringBuilder result = new StringBuilder();
+            URL url;
+            try {
+                url = new URL("http://192.168.1.222:6666/register");
+            } catch (MalformedURLException e) {
+                throw new RuntimeException(e);
+            }
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            BufferedReader rd = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            String line;
+            while ((line = rd.readLine()) != null) {
+               result.append(line);
+            }
+            rd.close();
+            return Integer.parseInt(result.toString());
+        }
     }
 }
