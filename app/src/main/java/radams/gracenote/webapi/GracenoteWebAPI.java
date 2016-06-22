@@ -109,6 +109,7 @@ public class GracenoteWebAPI
     // additional GOET data.
     public GracenoteMetadata fetchAlbum(String gn_id) throws GracenoteException
     {
+        //Log.d(MainActivity.TAG, "fetchAlbum(" + gn_id + ")");
         // Sanity check
         if (this._userID.equals("")) { this.register(); }
 

@@ -26,6 +26,7 @@ import org.apache.http.params.HttpParams;
 import org.apache.http.protocol.HTTP;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -33,6 +34,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -52,11 +55,13 @@ public class MainActivity extends AppCompatActivity {
     public static final int PLAYLIST_LOADER = 0;
     public static final int SONG_LOADER = 1;
     public static final String KEY_ID = "id";
-    public static final String CACHE_FILE = "track_id_cache";
+    public static final String CACHED_IDS_FILE = "track_id_cache";
+    public static final String CACHED_METADATA_FILE = "metadata_cache";
     private List<Object> playlists = Collections.synchronizedList(new ArrayList<Object>());
     private AtomicInteger loadersRunning;
     private GracenoteWebAPI api;
     private Map<Metadata, String> cachedIds;
+    private Map<String, Metadata> cachedMetadata;
     private int userId;
 
     private class PlaylistLoader implements LoaderManager.LoaderCallbacks<Cursor> {
@@ -159,6 +164,23 @@ public class MainActivity extends AppCompatActivity {
         return trackId;
     }
 
+    public Metadata getMetadata(String trackId) throws GracenoteException {
+        try {
+            if (cachedMetadata.containsKey(trackId)) {
+                return cachedMetadata.get(trackId);
+            }
+        } catch (NullPointerException e) {
+            Log.e(TAG, "cachedMetadata not initialized correctly", e);
+            cachedMetadata = new HashMap<>();
+        }
+        GracenoteMetadata results = api.fetchAlbum(trackId);
+        String track = (String) results.getAlbum(0).get("track_title");
+        String album = (String) results.getAlbum(0).get("album_title");
+        String artist = (String) results.getAlbum(0).get("album_artist_name");
+        Metadata met = new Metadata(artist, album, track);
+        cachedMetadata.put(trackId, met);
+        return met;
+    }
 
     private void send() {
         Log.d(TAG, "reporting to the mother ship");
@@ -238,72 +260,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private class GetSongIdTask extends AsyncTask<Void, Void, String> {
-        private String artist;
-        private String album;
-        private String title;
-
-        public GetSongIdTask(String artist, String album, String title) {
-            this.artist = artist;
-            this.album = album;
-            this.title = title;
-        }
-
-        @Override
-        protected String doInBackground(Void... foo) {
-            Log.d(TAG, "entering doInBackground()");
-            try {
-                GracenoteMetadata results = api.searchTrack(this.artist, this.album, this.title);
-                Log.d(TAG, "Got results successfully");
-                return "foobar";
-            } catch (GracenoteException e) {
-                Log.w(TAG, "Couldn't get song data for " + this.artist + "; " +
-                        this.album + "; " + this.title, e);
-                Log.d(TAG, "Didn't get results successfully");
-                return "ohno";
-            }
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        try {
-            FileOutputStream fout = openFileOutput(CACHE_FILE, Context.MODE_PRIVATE);
-            ObjectOutputStream oos = new ObjectOutputStream(fout);
-            oos.writeObject((HashMap) cachedIds);
-            oos.close();
-            fout.close();
-        } catch (IOException e) {
-            Log.e(TAG, "well this sucks (couldn't save cached data)", e);
-        }
-    }
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        try {
-            FileInputStream fin = openFileInput(CACHE_FILE);
-            ObjectInputStream ois = new ObjectInputStream(fin);
-            cachedIds = (HashMap<Metadata, String>) ois.readObject();
-            ois.close();
-            fin.close();
-        } catch (IOException | ClassNotFoundException e) {
-            Log.e(TAG, "well this sucks (couldn't load cached data)", e);
-            cachedIds = new HashMap<>();
-        }
-        try {
-            api = new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG, ApiKeys.GN_USER_ID);
-        } catch (GracenoteException e) {
-            Log.d(TAG, "Couldn't create API connection", e);
-        }
-    }
-
-    public void upload(View v) {
-        new RegisterTask().execute();
-    }
-
     private class RegisterTask extends AsyncTask<Void, Void, Integer> {
 
         @Override
@@ -352,5 +308,188 @@ public class MainActivity extends AppCompatActivity {
             rd.close();
             return Integer.parseInt(result.toString());
         }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        try {
+            FileOutputStream fout = openFileOutput(CACHED_IDS_FILE, Context.MODE_PRIVATE);
+            ObjectOutputStream oos = new ObjectOutputStream(fout);
+            oos.writeObject(cachedIds);
+            oos.close();
+            fout.close();
+        } catch (IOException e) {
+            Log.e(TAG, "well this sucks (couldn't save cached ids)", e);
+        }
+        try {
+            FileOutputStream fout = openFileOutput(CACHED_METADATA_FILE, Context.MODE_PRIVATE);
+            ObjectOutputStream oos = new ObjectOutputStream(fout);
+            oos.writeObject(cachedMetadata);
+            oos.close();
+            fout.close();
+        } catch (IOException e) {
+            Log.e(TAG, "well this sucks (couldn't save cached metadata)", e);
+        }
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        //Log.d(TAG, "onCreate()");
+        try {
+            FileInputStream fin = openFileInput(CACHED_IDS_FILE);
+            ObjectInputStream ois = new ObjectInputStream(fin);
+            cachedIds = (HashMap<Metadata, String>) ois.readObject();
+            ois.close();
+            fin.close();
+        } catch (IOException | ClassNotFoundException e) {
+            Log.e(TAG, "well this sucks (couldn't load cached track ids)", e);
+            cachedIds = new HashMap<>();
+        }
+        try {
+            FileInputStream fin = openFileInput(CACHED_METADATA_FILE);
+            ObjectInputStream ois = new ObjectInputStream(fin);
+            cachedMetadata = (HashMap<String, Metadata>) ois.readObject();
+            ois.close();
+            fin.close();
+            //Log.d(TAG, "loaded cached metadata from file");
+        } catch (IOException | ClassNotFoundException e) {
+            Log.e(TAG, "well this sucks (couldn't load cached metadata)", e);
+            cachedMetadata = new HashMap<>();
+        }
+        try {
+            api = new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG, ApiKeys.GN_USER_ID);
+        } catch (GracenoteException e) {
+            Log.d(TAG, "Couldn't create API connection", e);
+        }
+    }
+
+    public void upload(View v) {
+        new RegisterTask().execute();
+    }
+
+    public void recommend(View v) {
+        //Log.d(TAG, "recommend()");
+        new RecommendTask().execute();
+    }
+
+    private class RecommendTask extends AsyncTask<Void, Void, String> {
+
+        @Override
+        protected String doInBackground(Void... foo) {
+            String[] proj = {
+                MediaStore.Audio.Playlists._ID,
+                MediaStore.Audio.Playlists.NAME
+            };
+            String[] member_proj = {
+                MediaStore.Audio.Playlists.Members.ARTIST,
+                MediaStore.Audio.Playlists.Members.ALBUM,
+                MediaStore.Audio.Playlists.Members.TITLE
+            };
+
+            Cursor result = getContentResolver().query(MediaStore.Audio.Playlists.getContentUri("external"), proj, null, null, null);
+            result.moveToPosition(-1);
+            while (result.moveToNext()) {
+                int id = result.getInt(0);
+                String name = result.getString(1);
+                Log.d(TAG, "getting recommendations for playlist: " + name);
+
+                List<String> playlist = new ArrayList<>();
+                Cursor song_result = getContentResolver().query(
+                        MediaStore.Audio.Playlists.Members.getContentUri("external", id),
+                        member_proj, null, null, null);
+                song_result.moveToPosition(-1);
+                while (song_result.moveToNext()) {
+                    String artist = song_result.getString(0);
+                    String album = song_result.getString(1);
+                    String title = song_result.getString(2);
+                    try {
+                        playlist.add(getTrackId(artist, album, title));
+                    } catch (GracenoteException e) {
+                        Log.e(TAG, "that sucks");
+                    }
+                }
+                String json;
+                try {
+                    json = get_recommendations(playlist);
+                } catch (IOException e) {
+                    throw new RuntimeException("couldn't get recommendations", e);
+                }
+                Map<String, Object> data;
+                try {
+                    data = new ObjectMapper().readValue(json.getBytes(), Map.class);
+                } catch (IOException e) {
+                    Log.e(TAG, "received bad json: " + json);
+                    continue;
+                }
+                if (data.containsKey("error")) {
+                    Log.e(TAG, "Couldn't get recommendations: " + data.get("error"));
+                    continue;
+                }
+                for (Map<String, Object> recommendation : (List<Map<String, Object>>) data.get("recommendations")) {
+                    Metadata track;
+                    String trackId = (String) recommendation.get("track");
+                    try {
+                        track = getMetadata(trackId);
+                    } catch (GracenoteException e) {
+                        Log.e(TAG, "couldn't lookup track id: " + trackId);
+                        continue;
+                    }
+                    double score = (double) recommendation.get("score");
+                    Log.d(TAG, "track: " + track.track + " by " + track.artist + " (score: " + score + ")");
+
+                }
+                Log.d(TAG, "finished getting recommendations");
+            }
+            return "";
+        }
+
+        @Override
+        protected void onPostExecute(String json) {
+        }
+    }
+
+    public String get_recommendations(List<String> playlist) throws IOException {
+        //Log.d(TAG, "get_recommendations()");
+        Map<String, Object> data = new HashMap<>();
+        data.put("playlist", playlist);
+        String json;
+        try {
+            json = new ObjectMapper().writeValueAsString(data);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("IHateJavaException", e);
+        }
+
+        URL url;
+        try {
+            url = new URL("http://192.168.1.222:6666/recommend");
+        } catch (MalformedURLException e) {
+            throw new RuntimeException("IHateJavaException", e);
+        }
+        //Log.d(TAG, "making http connection");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setRequestMethod("POST");
+        conn.setDoOutput(true);
+        conn.setDoInput(true);
+
+        OutputStream os = conn.getOutputStream();
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(os, "UTF-8"));
+        writer.write(json);
+        writer.flush();
+        writer.close();
+        os.close();
+
+        StringBuilder result = new StringBuilder();
+        BufferedReader rd = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+        String line;
+        while ((line = rd.readLine()) != null) {
+           result.append(line);
+        }
+        rd.close();
+
+        return result.toString();
     }
 }
