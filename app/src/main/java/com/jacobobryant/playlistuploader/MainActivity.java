@@ -1,5 +1,8 @@
 package com.jacobobryant.playlistuploader;
 
+import android.accounts.Account;
+import android.accounts.AccountManager;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.database.Cursor;
@@ -12,6 +15,10 @@ import android.support.v4.content.Loader;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
+import android.widget.ExpandableListAdapter;
+import android.widget.ExpandableListView;
+import android.widget.SimpleExpandableListAdapter;
+import android.widget.TextView;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -63,6 +70,12 @@ public class MainActivity extends AppCompatActivity {
     private Map<Metadata, String> cachedIds;
     private Map<String, Metadata> cachedMetadata;
     private int userId;
+    public String host = "192.168.1.222";
+
+    public static final String AUTHORITY = "com.jacobobryant.playlistuploader";
+    public static final String ACCOUNT_TYPE = "com.jacobobryant";
+    public static final String ACCOUNT = "mycoolaccount";
+    Account mAccount;
 
     private class PlaylistLoader implements LoaderManager.LoaderCallbacks<Cursor> {
 
@@ -194,13 +207,14 @@ public class MainActivity extends AppCompatActivity {
             Log.wtf(TAG, "you moron!");
             return;
         }
-        String url = "http://192.168.1.222:6666/upload";
+        //String url = "http://192.168.1.222:6666/upload";
+        String url = "http://" + host + ":6666/upload";
 
         new UploadTask(url, json).execute();
     }
 
     private void sendForReal(String dest, String json) throws IOException {
-
+        Log.d(TAG, "dest: " + dest);
         int TIMEOUT_MILLISEC = 10000;  // = 10 seconds
         HttpParams httpParams = new BasicHttpParams();
         HttpConnectionParams.setConnectionTimeout(httpParams, TIMEOUT_MILLISEC);
@@ -254,7 +268,7 @@ public class MainActivity extends AppCompatActivity {
             try {
                 sendForReal(url, json);
             } catch (IOException e) {
-                Log.e(TAG, "error while uploading json", e);
+                throw new RuntimeException("error while uploading json", e);
             }
             return null;
         }
@@ -294,7 +308,8 @@ public class MainActivity extends AppCompatActivity {
             StringBuilder result = new StringBuilder();
             URL url;
             try {
-                url = new URL("http://192.168.1.222:6666/register");
+                //url = new URL("http://192.168.1.222:6666/register");
+                url = new URL("http://" + host + ":6666/register");
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
             }
@@ -364,21 +379,70 @@ public class MainActivity extends AppCompatActivity {
         } catch (GracenoteException e) {
             Log.d(TAG, "Couldn't create API connection", e);
         }
+        mAccount = CreateSyncAccount(this);
+    }
+
+    public static Account CreateSyncAccount(Context context) {
+        // Create the account type and default account
+        Account newAccount = new Account(ACCOUNT, ACCOUNT_TYPE);
+        // Get an instance of the Android account manager
+        AccountManager accountManager = (AccountManager) context.getSystemService(ACCOUNT_SERVICE);
+        /*
+         * Add the account and account type, no password or user data
+         * If successful, return the Account object, otherwise report an error.
+         */
+        if (accountManager.addAccountExplicitly(newAccount, null, null)) {
+            /*
+             * If you don't set android:syncable="true" in
+             * in your <provider> element in the manifest,
+             * then call context.setIsSyncable(account, AUTHORITY, 1)
+             * here.
+             */
+            Log.d(TAG, "setting sync stuff");
+            ContentResolver.setIsSyncable(newAccount, AUTHORITY, 1);
+            ContentResolver.setSyncAutomatically(newAccount, AUTHORITY, true);
+        } else {
+            /*
+             * The account exists or some other error occurred. Log this, report it,
+             * or handle it internally.
+             */
+        }
+        Log.d(TAG, "account created");
+        return newAccount;
     }
 
     public void upload(View v) {
-        new RegisterTask().execute();
+        TextView txtHost = (TextView) findViewById(R.id.txtHost);
+        if (txtHost.getText().length() > 0) {
+            host = txtHost.getText().toString();
+        }
+
+        //new RegisterTask().execute();
+
+        Bundle settingsBundle = new Bundle();
+        settingsBundle.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
+        settingsBundle.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
+        /*
+         * Request the sync for the default account, authority, and
+         * manual sync settings
+         */
+        Log.d(TAG, "calling requestSync()");
+        ContentResolver.requestSync(mAccount, AUTHORITY, settingsBundle);
     }
 
     public void recommend(View v) {
         //Log.d(TAG, "recommend()");
+        TextView txtHost = (TextView) findViewById(R.id.txtHost);
+        if (txtHost.getText().length() > 0) {
+            host = txtHost.getText().toString();
+        }
         new RecommendTask().execute();
     }
 
-    private class RecommendTask extends AsyncTask<Void, Void, String> {
+    private class RecommendTask extends AsyncTask<Void, Void, List<Map<String, Object>>> {
 
         @Override
-        protected String doInBackground(Void... foo) {
+        protected List<Map<String, Object>> doInBackground(Void... foo) {
             String[] proj = {
                 MediaStore.Audio.Playlists._ID,
                 MediaStore.Audio.Playlists.NAME
@@ -389,11 +453,13 @@ public class MainActivity extends AppCompatActivity {
                 MediaStore.Audio.Playlists.Members.TITLE
             };
 
+            List<Map<String, Object>> playlists = new ArrayList<>();
             Cursor result = getContentResolver().query(MediaStore.Audio.Playlists.getContentUri("external"), proj, null, null, null);
             result.moveToPosition(-1);
             while (result.moveToNext()) {
                 int id = result.getInt(0);
                 String name = result.getString(1);
+                Log.d(TAG, " ");
                 Log.d(TAG, "getting recommendations for playlist: " + name);
 
                 List<String> playlist = new ArrayList<>();
@@ -411,11 +477,15 @@ public class MainActivity extends AppCompatActivity {
                         Log.e(TAG, "that sucks");
                     }
                 }
+                if (playlist.size() == 0) {
+                    Log.d(TAG, "skipping empty playlist");
+                    continue;
+                }
                 String json;
                 try {
                     json = get_recommendations(playlist);
                 } catch (IOException e) {
-                    throw new RuntimeException("couldn't get recommendations", e);
+                    throw new RuntimeException("error while getting recommendations:", e);
                 }
                 Map<String, Object> data;
                 try {
@@ -428,6 +498,14 @@ public class MainActivity extends AppCompatActivity {
                     Log.e(TAG, "Couldn't get recommendations: " + data.get("error"));
                     continue;
                 }
+                if (((List<Object>) data.get("recommendations")).size() == 0) {
+                    Log.e(TAG, "No recommendations for playlist");
+                    continue;
+                }
+
+                data.put("playlist", name);
+                playlists.add(data);
+
                 for (Map<String, Object> recommendation : (List<Map<String, Object>>) data.get("recommendations")) {
                     Metadata track;
                     String trackId = (String) recommendation.get("track");
@@ -439,38 +517,90 @@ public class MainActivity extends AppCompatActivity {
                     }
                     double score = (double) recommendation.get("score");
                     Log.d(TAG, "track: " + track.track + " by " + track.artist + " (score: " + score + ")");
-
                 }
-                Log.d(TAG, "finished getting recommendations");
             }
-            return "";
+            Log.d(TAG, " ");
+            Log.d(TAG, "finished getting recommendations");
+            return playlists;
         }
 
         @Override
-        protected void onPostExecute(String json) {
+        protected void onPostExecute(List<Map<String, Object>> playlists) {
+            ExpandableListView list = (ExpandableListView) findViewById(R.id.lstRecommendations);
+            ExpandableListAdapter adapter = makeAdapter(playlists);
+            list.setAdapter(adapter);
+			for (int position = 0; position < adapter.getGroupCount(); position++) {
+				list.expandGroup(position);
+            }
         }
     }
 
+    private ExpandableListAdapter makeAdapter(List<Map<String, Object>> playlists) {
+        final String NAME = "NAME";
+        //String[] group = {"LIFE EVENTS", "FAMILY"};
+        //String[][] rawChildren = {person.getEventStrings(), person.getFamilyStrings()};
+
+        List<Map<String, String>> headers = new ArrayList<>();
+        List<List<Map<String, String>>> childData = new ArrayList<>();
+
+        for (Map<String, Object> playlist : playlists) {
+            Map<String, String> headerItem = new HashMap<>();
+            String playlistName = (String) playlist.get("playlist");
+            headerItem.put(NAME, playlistName);
+            headers.add(headerItem);
+
+            List<Map<String, Object>> recommendations = (List<Map<String, Object>>) playlist.get("recommendations");
+
+            List<Map<String, String>> children = new ArrayList<>();
+            for (Map<String, Object> recommendation : recommendations) {
+                Metadata track;
+                String trackId = (String) recommendation.get("track");
+                try {
+                    track = getMetadata(trackId);
+                } catch (GracenoteException e) {
+                    Log.e(TAG, "couldn't lookup track id: " + trackId);
+                    continue;
+                }
+                int percent = (int) (100 * ((double) recommendation.get("score")));
+
+                String text = track.track + "\n" + track.artist + " (" + percent + "%)";
+
+                Map<String, String> childItem = new HashMap<>();
+                childItem.put(NAME, text);
+                children.add(childItem);
+            }
+            childData.add(children);
+        }
+
+        return new SimpleExpandableListAdapter(this,
+                headers, R.layout.list_parent,
+                new String[] { NAME }, new int[] { android.R.id.text1 },
+                childData, android.R.layout.simple_expandable_list_item_2,
+                new String[] { NAME }, new int[] { android.R.id.text1 });
+    }
+
     public String get_recommendations(List<String> playlist) throws IOException {
-        //Log.d(TAG, "get_recommendations()");
+        Log.d(TAG, "get_recommendations()");
         Map<String, Object> data = new HashMap<>();
         data.put("playlist", playlist);
         String json;
         try {
             json = new ObjectMapper().writeValueAsString(data);
+            //Log.d(TAG, "posting data: " + json);
         } catch (JsonProcessingException e) {
             throw new RuntimeException("IHateJavaException", e);
         }
 
         URL url;
         try {
-            url = new URL("http://192.168.1.222:6666/recommend");
+            //url = new URL("http://192.168.1.222:6666/recommend");
+            url = new URL("http://" + host + ":6666/recommend");
         } catch (MalformedURLException e) {
             throw new RuntimeException("IHateJavaException", e);
         }
-        //Log.d(TAG, "making http connection");
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestProperty("Content-Type", "application/json");
+        conn.setRequestProperty("Connection", "close");
         conn.setRequestMethod("POST");
         conn.setDoOutput(true);
         conn.setDoInput(true);
@@ -490,6 +620,7 @@ public class MainActivity extends AppCompatActivity {
         }
         rd.close();
 
+        Log.d(TAG, "get_recommendations() finished");
         return result.toString();
     }
 }
