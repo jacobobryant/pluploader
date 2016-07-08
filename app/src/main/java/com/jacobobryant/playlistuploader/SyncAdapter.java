@@ -8,25 +8,37 @@ import android.content.SharedPreferences;
 import android.content.SyncResult;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.provider.MediaStore;
 import android.util.Log;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.*;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 
 import radams.gracenote.webapi.GracenoteException;
 import radams.gracenote.webapi.GracenoteMetadata;
 import radams.gracenote.webapi.GracenoteWebAPI;
 
-// TODO save cached objects to file on exit
-
 public class SyncAdapter extends AbstractThreadedSyncAdapter {
+    public static final String TAG = MainActivity.TAG;
     Context context;
     static final String CACHED_IDS_FILE = "track_id_cache";
     static final String CACHED_METADATA_FILE = "metadata_cache";
@@ -47,33 +59,58 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     }
 
     void init() {
-        cachedIds = loadObject(CACHED_IDS_FILE, HashMap<Metadata, String>.class);
-        cachedMetadata = loadObject(CACHED_METADATA_FILE, HashMap<String, Metadata>.class);
+        cachedIds = loadObject(CACHED_IDS_FILE, new HashMap<Metadata, String>().getClass());
+        if (cachedIds == null) {
+            cachedIds = new HashMap<>();
+        }
+        cachedMetadata = loadObject(CACHED_METADATA_FILE,
+                new HashMap<String, Metadata>().getClass());
+        if (cachedMetadata == null) {
+            cachedMetadata = new HashMap<>();
+        }
     }
 
     @Override
     public void onPerformSync(Account account, Bundle extras, String authority,
                        ContentProviderClient provider, SyncResult syncResult) {
-        Log.d(MainActivity.TAG, "onPerformSync()");
-        api = new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG, ApiKeys.GN_USER_ID);
-        int userId;
         try {
-            userId = getUserId();
-        } catch (IOException e) {
-            // There's nothing we can do about it...
-            throw new RuntimeException(e);
+            Log.d(MainActivity.TAG, "onPerformSync()");
+            try {
+                api = new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG, ApiKeys.GN_USER_ID);
+            } catch (GracenoteException e) {
+                throw new RuntimeException(e);
+            }
+            Log.d(MainActivity.TAG, "getting user id");
+            int userId;
+            try {
+                userId = getUserId();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            Log.d(MainActivity.TAG, "getting local playlists");
+            List<Playlist> playlists = new LinkedList<>();
+            for (int playlistId : getPlaylistIds()) {
+                playlists.add(getPlaylist(playlistId));
+            }
+            Log.d(MainActivity.TAG, "getting recommendations");
+            List<Recommendations> recommendations;
+            try {
+                recommendations = getRecommendations(playlists, userId);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            Log.d(MainActivity.TAG, "storing recommendations");
+            storeRecommendations(recommendations);
+            Log.d(TAG, "finished sync");
+        } finally {
+            Log.d(MainActivity.TAG, "saving cached objects");
+            saveCachedObjects();
         }
-        List<List<String>> playlists = new LinkedList<>();
-        for (int playlistId : getPlaylistIds()) {
-            playlists.add(getPlaylist(playlistId));
-        }
-        List<Recommendation> recommendations = getRecommendations(playlists);
-        storeRecommendations(recommendations, playlistId);
     }
 
     // ========== USER ID ==========
     int getUserId() throws IOException {
-        SharedPreferences settings = getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
         int userId = settings.getInt("user_id", -1);
         if (userId != -1) {
             return userId;
@@ -89,12 +126,14 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         StringBuilder result = new StringBuilder();
         URL url;
         try {
-            url = new URL("http://192.168.1.222:6666/register");
+            url = new URL("http://192.168.1.222:5666/register");
         } catch (MalformedURLException e) {
             throw new RuntimeException(e);
         }
+        Log.d(TAG, "opening connection to " + url.toString());
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("POST");
+        conn.setDoOutput(false);
         BufferedReader rd = new BufferedReader(new InputStreamReader(conn.getInputStream()));
         String line;
         while ((line = rd.readLine()) != null) {
@@ -112,7 +151,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 MediaStore.Audio.Playlists.EXTERNAL_CONTENT_URI, proj, null, null, null);
         result.moveToPosition(-1);
         while (result.moveToNext()) {
-            int id = cursor.getInt(0);
+            int id = result.getInt(0);
             ids.add(id);
         }
         result.close();
@@ -120,7 +159,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     }
 
     // ========== PLAYLIST ==========
-    List<String> getPlaylist(int playlistId) {
+    Playlist getPlaylist(int playlistId) {
         final String[] proj = {
             MediaStore.Audio.Playlists.Members.AUDIO_ID,
             MediaStore.Audio.Playlists.Members.TITLE,
@@ -131,34 +170,37 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 MediaStore.Audio.Playlists.Members.getContentUri("external", playlistId),
                 proj, null, null, null);
         result.moveToPosition(-1);
-        List<String> playlist = new ArrayList<>();
+        List<String> tracks = new LinkedList<>();
         while (result.moveToNext()) {
             String title = result.getString(1);
             String artist = result.getString(2);
             String album = result.getString(3);
             try {
                 String trackId = getTrackId(artist, album, title);
-                songs.add(trackId);
+                tracks.add(trackId);
             } catch (GracenoteException e) {
-                Log.e(TAG, "Couldn't get Gracenote ID for " + title, e);
+                Log.e(MainActivity.TAG, "Couldn't get Gracenote ID for " + title, e);
             }
         }
-        return playlist;
+        return new Playlist(tracks, playlistId);
     }
 
     // ========== RECOMMENDATIONS ==========
-    List<Recommendation> getRecommendations(List<List<String>> playlists, int uid) {
+    List<Recommendations> getRecommendations(List<Playlist> playlists, int uid) throws IOException {
         String json = getJson(playlists, uid);
-        String url = "http://192.168.1.222:6666/upload";
-        String response = upload(url, json);
-        return parseResponse(response);
+        Log.d(MainActivity.TAG, json);
+        String response = upload(json);
+        List<Recommendations> recommendations = parseResponse(response);
+        for (int i = 0; i < recommendations.size(); i++) {
+            recommendations.get(i).setPlaylistId(playlists.get(i).getId());
+        }
+        return recommendations;
      }
 
-    String getJson(List<List<String>> playlists, int uid) {
+    String getJson(List<Playlist> playlists, int uid) {
         Map<String, Object> object = new HashMap<>();
         object.put("id", uid);
-        object.put("playlists", playlists);
-        String json;
+        object.put("playlists", Playlist.toList(playlists));
         try {
             return new ObjectMapper().writeValueAsString(object);
         } catch (JsonProcessingException e) {
@@ -166,12 +208,74 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         }
     }
 
-    String upload(String url, String json) {
-        // TODO
+    String upload(String json) throws IOException {
+        URL url;
+        try {
+            url = new URL("http://192.168.1.222:5666/recommend");
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+
+        // set up request
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setRequestProperty("Connection", "close");
+        conn.setRequestMethod("POST");
+        conn.setDoOutput(true);
+        conn.setDoInput(true);
+
+        // send request
+        OutputStream os = conn.getOutputStream();
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(os, "UTF-8"));
+        writer.write(json);
+        writer.flush();
+        writer.close();
+        os.close();
+
+        // receive response
+        StringBuilder result = new StringBuilder();
+        BufferedReader rd = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+        String line;
+        while ((line = rd.readLine()) != null) {
+            result.append(line);
+        }
+        rd.close();
+
+        return result.toString();
     }
 
-    List<Recommendation> parseResponse(String response) {
-        // TODO
+    List<Recommendations> parseResponse(String response) throws IOException {
+        Map<String, Object> data = new ObjectMapper().readValue(response.getBytes(), Map.class);
+        if (data.containsKey("error")) {
+            throw new IOException("couldn't get recommendations: " + data.get("error"));
+        }
+        List<Recommendations> recommendations = new LinkedList<>();
+        for (List<Map<String, Object>> recList :
+                (List<List<Map<String, Object>>>) data.get("recommendations")) {
+            recommendations.add(new Recommendations(recList));
+        }
+        return recommendations;
+    }
+
+    // ========== STORE ==========
+    void storeRecommendations(List<Recommendations> recommendations) {
+        for (Recommendations recs : recommendations) {
+            Log.e(TAG, "storing recommendations for playlist with id: " + recs.getPlaylistId());
+
+            for (Map<String, Object> recommendation : recs.getRecList()) {
+                Metadata track;
+                String trackId = (String) recommendation.get("track");
+                try {
+                    track = getMetadata(trackId);
+                } catch (GracenoteException e) {
+                    Log.e(TAG, "couldn't lookup track id: " + trackId);
+                    continue;
+                }
+                double score = (double) recommendation.get("score");
+                Log.d(TAG, "track: " + track.track + " by " + track.artist +
+                        " (score: " + score + ")");
+            }
+        }
     }
 
     // ========== UTILS ==========
@@ -186,17 +290,52 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         return trackId;
     }
 
+    public Metadata getMetadata(String trackId) throws GracenoteException {
+        try {
+            if (cachedMetadata.containsKey(trackId)) {
+                return cachedMetadata.get(trackId);
+            }
+        } catch (NullPointerException e) {
+            Log.e(TAG, "cachedMetadata not initialized correctly", e);
+            cachedMetadata = new HashMap<>();
+        }
+        GracenoteMetadata results = api.fetchAlbum(trackId);
+        String track = (String) results.getAlbum(0).get("track_title");
+        String album = (String) results.getAlbum(0).get("album_title");
+        String artist = (String) results.getAlbum(0).get("album_artist_name");
+        Metadata met = new Metadata(artist, album, track);
+        cachedMetadata.put(trackId, met);
+        return met;
+    }
+
     <T> T loadObject(String filename, Class<T> type) {
         T object;
         try {
-            FileInputStream fin = openFileInput(filename);
+            FileInputStream fin = context.openFileInput(filename);
             ObjectInputStream ois = new ObjectInputStream(fin);
             object = type.cast(ois.readObject());
             ois.close();
             fin.close();
         } catch (IOException | ClassNotFoundException e) {
-            object = new T();
+            return null;
         }
         return object;
+    }
+
+    void saveCachedObjects() {
+        saveObject(CACHED_IDS_FILE, cachedIds);
+        saveObject(CACHED_METADATA_FILE, cachedMetadata);
+    }
+
+    void saveObject(String filename, Object object) {
+        try {
+            FileOutputStream fout = context.openFileOutput(filename, Context.MODE_PRIVATE);
+            ObjectOutputStream oos = new ObjectOutputStream(fout);
+            oos.writeObject(object);
+            oos.close();
+            fout.close();
+        } catch (IOException e) {
+            Log.e(TAG, "couldn't save cached object", e);
+        }
     }
 }

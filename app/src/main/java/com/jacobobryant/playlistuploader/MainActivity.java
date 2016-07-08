@@ -412,20 +412,16 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void upload(View v) {
-        TextView txtHost = (TextView) findViewById(R.id.txtHost);
-        if (txtHost.getText().length() > 0) {
-            host = txtHost.getText().toString();
-        }
+        //TextView txtHost = (TextView) findViewById(R.id.txtHost);
+        //if (txtHost.getText().length() > 0) {
+        //    host = txtHost.getText().toString();
+        //}
 
         //new RegisterTask().execute();
 
         Bundle settingsBundle = new Bundle();
         settingsBundle.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
         settingsBundle.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
-        /*
-         * Request the sync for the default account, authority, and
-         * manual sync settings
-         */
         Log.d(TAG, "calling requestSync()");
         ContentResolver.requestSync(mAccount, AUTHORITY, settingsBundle);
     }
