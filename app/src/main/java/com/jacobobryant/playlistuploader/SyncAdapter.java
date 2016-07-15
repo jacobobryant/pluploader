@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.SyncResult;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.provider.MediaStore;
@@ -188,7 +189,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     // ========== RECOMMENDATIONS ==========
     List<Recommendations> getRecommendations(List<Playlist> playlists, int uid) throws IOException {
         String json = getJson(playlists, uid);
-        Log.d(MainActivity.TAG, json);
         String response = upload(json);
         List<Recommendations> recommendations = parseResponse(response);
         for (int i = 0; i < recommendations.size(); i++) {
@@ -211,7 +211,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     String upload(String json) throws IOException {
         URL url;
         try {
-            url = new URL("http://192.168.1.222:5666/recommend");
+            url = new URL("http://192.168.1.222:5666/upload");
         } catch (MalformedURLException e) {
             throw new RuntimeException(e);
         }
@@ -246,9 +246,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
 
     List<Recommendations> parseResponse(String response) throws IOException {
         Map<String, Object> data = new ObjectMapper().readValue(response.getBytes(), Map.class);
-        if (data.containsKey("error")) {
-            throw new IOException("couldn't get recommendations: " + data.get("error"));
-        }
         List<Recommendations> recommendations = new LinkedList<>();
         for (List<Map<String, Object>> recList :
                 (List<List<Map<String, Object>>>) data.get("recommendations")) {
@@ -259,6 +256,9 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
 
     // ========== STORE ==========
     void storeRecommendations(List<Recommendations> recommendations) {
+        SQLiteDatabase db = new Database(context).getWritableDatabase();
+        db.beginTransaction();
+        db.execSQL("DELETE FROM recommendations");
         for (Recommendations recs : recommendations) {
             Log.e(TAG, "storing recommendations for playlist with id: " + recs.getPlaylistId());
 
@@ -268,14 +268,18 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 try {
                     track = getMetadata(trackId);
                 } catch (GracenoteException e) {
-                    Log.e(TAG, "couldn't lookup track id: " + trackId);
+                    Log.e(TAG, "couldn't lookup metadata for track id: " + trackId, e);
                     continue;
                 }
-                double score = (double) recommendation.get("score");
-                Log.d(TAG, "track: " + track.track + " by " + track.artist +
-                        " (score: " + score + ")");
+                String score = String.valueOf(recommendation.get("score"));
+                db.execSQL("INSERT INTO recommendations (playlist_id, title, artist, " +
+                           "album, score) VALUES (?, ?, ?, ?, ?)",
+                    new String[] { String.valueOf(recs.getPlaylistId()),
+                                   track.track, track.artist, track.album, score });
             }
         }
+        db.setTransactionSuccessful();
+        db.endTransaction();
     }
 
     // ========== UTILS ==========
