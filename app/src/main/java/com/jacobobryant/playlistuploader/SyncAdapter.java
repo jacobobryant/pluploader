@@ -4,6 +4,7 @@ import android.accounts.Account;
 import android.content.AbstractThreadedSyncAdapter;
 import android.content.ContentProviderClient;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.SyncResult;
 import android.database.Cursor;
@@ -280,6 +281,9 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         }
         db.setTransactionSuccessful();
         db.endTransaction();
+        Intent i = new Intent("com.jacobobryant.playlistuploader.SYNC_FINISHED");
+        context.sendBroadcast(i);
+
     }
 
     // ========== UTILS ==========
