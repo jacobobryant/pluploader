@@ -17,23 +17,38 @@ import android.util.Log;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
-import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.TrustManagerFactory;
 
 import radams.gracenote.webapi.GracenoteException;
 import radams.gracenote.webapi.GracenoteMetadata;
@@ -41,12 +56,14 @@ import radams.gracenote.webapi.GracenoteWebAPI;
 
 public class SyncAdapter extends AbstractThreadedSyncAdapter {
     public static final String TAG = MainActivity.TAG;
+    public static final String SERVER = "https://192.34.57.201:4043";
     Context context;
     static final String CACHED_IDS_FILE = "track_id_cache";
     static final String CACHED_METADATA_FILE = "metadata_cache";
     Map<Metadata, String> cachedIds;
     Map<String, Metadata> cachedMetadata;
     GracenoteWebAPI api;
+    SSLContext sslContext;
 
     public SyncAdapter(Context context, boolean autoInitialize) {
         super(context, autoInitialize);
@@ -70,11 +87,18 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         if (cachedMetadata == null) {
             cachedMetadata = new HashMap<>();
         }
+        try {
+            this.sslContext = makeContext();
+        } catch (CertificateException | IOException | KeyStoreException | NoSuchAlgorithmException
+                 | KeyManagementException | NoSuchProviderException e) {
+            throw new RuntimeException("", e);
+        }
+        Log.d(TAG, "finished SyncAdapter.init()");
     }
 
     @Override
     public void onPerformSync(Account account, Bundle extras, String authority,
-                       ContentProviderClient provider, SyncResult syncResult) {
+                              ContentProviderClient provider, SyncResult syncResult) {
         try {
             Log.d(MainActivity.TAG, "onPerformSync()");
             try {
@@ -83,7 +107,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 throw new RuntimeException(e);
             }
             Log.d(MainActivity.TAG, "getting user id");
-            int userId;
+            String userId;
             try {
                 userId = getUserId();
             } catch (IOException e) {
@@ -111,44 +135,47 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     }
 
     // ========== USER ID ==========
-    int getUserId() throws IOException {
+    String getUserId() throws IOException {
         SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
-        int userId = settings.getInt("user_id", -1);
-        if (userId != -1) {
+        String userId = settings.getString("user_id", "");
+        if (userId != "") {
             return userId;
         }
         userId = register();
         SharedPreferences.Editor editor = settings.edit();
-        editor.putInt("user_id", userId);
+        editor.putString("user_id", userId);
         editor.commit();
         return userId;
     }
 
-    int register() throws IOException {
-        StringBuilder result = new StringBuilder();
+    String register() throws IOException {
         URL url;
         try {
-            url = new URL("http://192.168.1.222:5666/register");
+            url = new URL(SERVER + "/register");
         } catch (MalformedURLException e) {
             throw new RuntimeException(e);
         }
         Log.d(TAG, "opening connection to " + url.toString());
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+
+        //HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        HttpsURLConnection conn = makeConnection(url);
+
         conn.setRequestMethod("POST");
         conn.setDoOutput(false);
         BufferedReader rd = new BufferedReader(new InputStreamReader(conn.getInputStream()));
         String line;
+        StringBuilder result = new StringBuilder();
         while ((line = rd.readLine()) != null) {
-           result.append(line);
+            result.append(line);
         }
         rd.close();
-        return Integer.parseInt(result.toString());
+        return result.toString().trim();
     }
 
     // ========== PLAYLIST IDS ==========
     List<Integer> getPlaylistIds() {
         List<Integer> ids = new LinkedList<>();
-        final String[] proj = { MediaStore.Audio.Playlists._ID };
+        final String[] proj = {MediaStore.Audio.Playlists._ID};
         Cursor result = context.getContentResolver().query(
                 MediaStore.Audio.Playlists.EXTERNAL_CONTENT_URI, proj, null, null, null);
         result.moveToPosition(-1);
@@ -163,10 +190,10 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     // ========== PLAYLIST ==========
     Playlist getPlaylist(int playlistId) {
         final String[] proj = {
-            MediaStore.Audio.Playlists.Members.AUDIO_ID,
-            MediaStore.Audio.Playlists.Members.TITLE,
-            MediaStore.Audio.Playlists.Members.ARTIST,
-            MediaStore.Audio.Playlists.Members.ALBUM
+                MediaStore.Audio.Playlists.Members.AUDIO_ID,
+                MediaStore.Audio.Playlists.Members.TITLE,
+                MediaStore.Audio.Playlists.Members.ARTIST,
+                MediaStore.Audio.Playlists.Members.ALBUM
         };
         Cursor result = context.getContentResolver().query(
                 MediaStore.Audio.Playlists.Members.getContentUri("external", playlistId),
@@ -188,7 +215,8 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     }
 
     // ========== RECOMMENDATIONS ==========
-    List<Recommendations> getRecommendations(List<Playlist> playlists, int uid) throws IOException {
+    List<Recommendations> getRecommendations(List<Playlist> playlists, String uid)
+            throws IOException {
         String json = getJson(playlists, uid);
         String response = upload(json);
         List<Recommendations> recommendations = parseResponse(response);
@@ -196,9 +224,9 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
             recommendations.get(i).setPlaylistId(playlists.get(i).getId());
         }
         return recommendations;
-     }
+    }
 
-    String getJson(List<Playlist> playlists, int uid) {
+    String getJson(List<Playlist> playlists, String uid) {
         Map<String, Object> object = new HashMap<>();
         object.put("id", uid);
         object.put("playlists", Playlist.toList(playlists));
@@ -212,13 +240,15 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     String upload(String json) throws IOException {
         URL url;
         try {
-            url = new URL("http://192.168.1.222:5666/upload");
+            url = new URL(SERVER + "/upload");
         } catch (MalformedURLException e) {
             throw new RuntimeException(e);
         }
 
+        HttpsURLConnection conn = makeConnection(url);
+
         // set up request
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        //HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestProperty("Content-Type", "application/json");
         conn.setRequestProperty("Connection", "close");
         conn.setRequestMethod("POST");
@@ -247,6 +277,9 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
 
     List<Recommendations> parseResponse(String response) throws IOException {
         Map<String, Object> data = new ObjectMapper().readValue(response.getBytes(), Map.class);
+        if (data.containsKey("error")) {
+            throw new RuntimeException("got error from server: " + data.get("error"));
+        }
         List<Recommendations> recommendations = new LinkedList<>();
         for (List<Map<String, Object>> recList :
                 (List<List<Map<String, Object>>>) data.get("recommendations")) {
@@ -274,16 +307,15 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 }
                 String score = String.valueOf(recommendation.get("score"));
                 db.execSQL("INSERT INTO recommendations (playlist_id, title, artist, " +
-                           "album, score) VALUES (?, ?, ?, ?, ?)",
-                    new String[] { String.valueOf(recs.getPlaylistId()),
-                                   track.track, track.artist, track.album, score });
+                                "album, score) VALUES (?, ?, ?, ?, ?)",
+                        new String[]{String.valueOf(recs.getPlaylistId()),
+                                track.track, track.artist, track.album, score});
             }
         }
         db.setTransactionSuccessful();
         db.endTransaction();
         Intent i = new Intent("com.jacobobryant.playlistuploader.SYNC_FINISHED");
         context.sendBroadcast(i);
-
     }
 
     // ========== UTILS ==========
@@ -345,5 +377,56 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         } catch (IOException e) {
             Log.e(TAG, "couldn't save cached object", e);
         }
+    }
+
+
+    SSLContext makeContext() throws CertificateException, IOException, KeyStoreException,
+            NoSuchAlgorithmException, KeyManagementException, NoSuchProviderException {
+        // Load CAs from an InputStream
+        // (could be from a resource or ByteArrayInputStream or ...)
+        CertificateFactory cf = CertificateFactory.getInstance("X.509");
+        InputStream caInput = new BufferedInputStream(
+                this.context.getAssets().open("jacobobryant.com.crt"));
+        //InputStream caInput = new ByteArrayInputStream(CERT.getBytes());
+
+        Certificate ca;
+        try {
+            ca = cf.generateCertificate(caInput);
+        } finally {
+            caInput.close();
+        }
+
+        // Create a KeyStore containing our trusted CAs
+        String keyStoreType = KeyStore.getDefaultType();
+        KeyStore keyStore = KeyStore.getInstance(keyStoreType);
+        //KeyStore keyStore = KeyStore.getInstance("BKS");
+        keyStore.load(null, null);
+        //keyStore.load(caInput, "testing".getBytes());
+        keyStore.setCertificateEntry("ca", ca);
+
+        // Create a TrustManager that trusts the CAs in our KeyStore
+        String tmfAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(tmfAlgorithm);
+        tmf.init(keyStore);
+
+        // Create an SSLContext that uses our TrustManager
+        SSLContext context = SSLContext.getInstance("TLS");
+        context.init(null, tmf.getTrustManagers(), null);
+        return context;
+    }
+
+    HttpsURLConnection makeConnection(URL url) throws IOException {
+        HostnameVerifier hostnameVerifier = new HostnameVerifier() {
+            @Override
+            public boolean verify(String hostname, SSLSession session) {
+                // hee hee hee
+                return true;
+            }
+        };
+
+        HttpsURLConnection urlConnection = (HttpsURLConnection) url.openConnection();
+        urlConnection.setSSLSocketFactory(this.sslContext.getSocketFactory());
+        urlConnection.setHostnameVerifier(hostnameVerifier);
+        return urlConnection;
     }
 }

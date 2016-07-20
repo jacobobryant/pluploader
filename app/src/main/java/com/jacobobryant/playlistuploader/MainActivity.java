@@ -49,11 +49,6 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "setting sync stuff");
             ContentResolver.setIsSyncable(newAccount, AUTHORITY, 1);
             ContentResolver.setSyncAutomatically(newAccount, AUTHORITY, true);
-        } else {
-            /*
-             * The account exists or some other error occurred. Log this, report it,
-             * or handle it internally.
-             */
         }
         Log.d(TAG, "account created");
         return newAccount;
@@ -62,7 +57,7 @@ public class MainActivity extends AppCompatActivity {
     public void sync() {
 		progress = new ProgressDialog(this);
 		progress.setTitle("Loading Recommendations");
-		progress.setMessage("ho ho ho");
+		progress.setMessage("Give you Big Surprise. He~ He~");
 		progress.show();
 
         Bundle settingsBundle = new Bundle();
