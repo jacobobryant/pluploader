@@ -1,6 +1,8 @@
 package com.jacobobryant.playlistuploader;
 
 import android.accounts.Account;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.AbstractThreadedSyncAdapter;
 import android.content.ContentProviderClient;
 import android.content.Context;
@@ -12,6 +14,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.provider.MediaStore;
+import android.support.v7.app.NotificationCompat;
 import android.util.Log;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -56,7 +59,8 @@ import radams.gracenote.webapi.GracenoteWebAPI;
 
 public class SyncAdapter extends AbstractThreadedSyncAdapter {
     public static final String TAG = MainActivity.TAG;
-    public static final String SERVER = "https://192.34.57.201:4043";
+    public static final String SERVER = "https://192.34.57.201";
+    public static final int NOTIFY_ID = 1;
     Context context;
     static final String CACHED_IDS_FILE = "track_id_cache";
     static final String CACHED_METADATA_FILE = "metadata_cache";
@@ -64,6 +68,8 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     Map<String, Metadata> cachedMetadata;
     GracenoteWebAPI api;
     SSLContext sslContext;
+    NotificationManager notifyManager;
+    NotificationCompat.Builder notifyBuilder;
 
     public SyncAdapter(Context context, boolean autoInitialize) {
         super(context, autoInitialize);
@@ -82,17 +88,20 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         if (cachedIds == null) {
             cachedIds = new HashMap<>();
         }
+
         cachedMetadata = loadObject(CACHED_METADATA_FILE,
                 new HashMap<String, Metadata>().getClass());
         if (cachedMetadata == null) {
             cachedMetadata = new HashMap<>();
         }
+
         try {
             this.sslContext = makeContext();
         } catch (CertificateException | IOException | KeyStoreException | NoSuchAlgorithmException
                  | KeyManagementException | NoSuchProviderException e) {
             throw new RuntimeException("", e);
         }
+
         Log.d(TAG, "finished SyncAdapter.init()");
     }
 
@@ -101,11 +110,14 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                               ContentProviderClient provider, SyncResult syncResult) {
         try {
             Log.d(MainActivity.TAG, "onPerformSync()");
+            startProgress();
+
             try {
                 api = new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG, ApiKeys.GN_USER_ID);
             } catch (GracenoteException e) {
                 throw new RuntimeException(e);
             }
+
             Log.d(MainActivity.TAG, "getting user id");
             String userId;
             try {
@@ -113,11 +125,13 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+
             Log.d(MainActivity.TAG, "getting local playlists");
             List<Playlist> playlists = new LinkedList<>();
             for (int playlistId : getPlaylistIds()) {
                 playlists.add(getPlaylist(playlistId));
             }
+
             Log.d(MainActivity.TAG, "getting recommendations");
             List<Recommendations> recommendations;
             try {
@@ -125,13 +139,44 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+
             Log.d(MainActivity.TAG, "storing recommendations");
             storeRecommendations(recommendations);
             Log.d(TAG, "finished sync");
+
         } finally {
+            endProgress();
+            Intent i = new Intent("com.jacobobryant.playlistuploader.SYNC_FINISHED");
+            context.sendBroadcast(i);
             Log.d(MainActivity.TAG, "saving cached objects");
             saveCachedObjects();
         }
+    }
+
+    // ========== PROGRESS NOTIFICATION ==========
+    void startProgress() {
+        this.notifyManager = (NotificationManager) context.getSystemService(
+                Context.NOTIFICATION_SERVICE);
+        notifyBuilder = new NotificationCompat.Builder(context);
+        notifyBuilder.setContentTitle("Music Recommender")
+                     .setContentText("Give you Big Surprise. He~ He~")
+                     .setSmallIcon(R.drawable.ic_autorenew_white_48dp);
+        notifyBuilder.setProgress(0, 0, true);
+        notifyManager.notify(NOTIFY_ID, notifyBuilder.build());
+    }
+
+    void endProgress() {
+        Intent intent = new Intent(context, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT);
+		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+		intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent pintent = PendingIntent.getActivity(context, 1, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT);
+
+        notifyBuilder.setProgress(0, 0, false)
+                     .setContentText("Finished getting recommendations")
+                     .setContentIntent(pintent);
+        notifyManager.notify(NOTIFY_ID, notifyBuilder.build());
     }
 
     // ========== USER ID ==========
@@ -157,7 +202,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         }
         Log.d(TAG, "opening connection to " + url.toString());
 
-        //HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         HttpsURLConnection conn = makeConnection(url);
 
         conn.setRequestMethod("POST");
@@ -314,8 +358,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         }
         db.setTransactionSuccessful();
         db.endTransaction();
-        Intent i = new Intent("com.jacobobryant.playlistuploader.SYNC_FINISHED");
-        context.sendBroadcast(i);
     }
 
     // ========== UTILS ==========
