@@ -6,5 +6,5 @@
     android:textAppearance="?android:attr/textAppearanceListItem"
     android:gravity="center_vertical"
     android:textAlignment="viewStart"
-    android:background="#ccc"
-/>
+    android:text="hello"
+    android:textStyle="bold" />

@@ -22,6 +22,7 @@ import android.text.method.LinkMovementMethod;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.ExpandableListAdapter;
 import android.widget.ExpandableListView;
 import android.widget.SimpleExpandableListAdapter;
@@ -80,10 +81,17 @@ public class MainActivity extends AppCompatActivity {
 
     public void show() {
         ExpandableListView list = (ExpandableListView) findViewById(R.id.lstRecommendations);
+
         ExpandableListAdapter adapter = makeAdapter();
         list.setAdapter(adapter);
         for (int position = 0; position < adapter.getGroupCount(); position++) {
             list.expandGroup(position);
+        }
+
+        if (adapter.getGroupCount() == 0) {
+            findViewById(android.R.id.empty).setVisibility(View.VISIBLE);
+        } else {
+            findViewById(android.R.id.empty).setVisibility(View.INVISIBLE);
         }
     }
 
@@ -127,13 +135,18 @@ public class MainActivity extends AppCompatActivity {
         List<Map<String, String>> headers = new ArrayList<>();
         List<List<Map<String, String>>> childData = new ArrayList<>();
 
-        for (Map.Entry<Integer, List<Recommendation>> entry : recommendations.entrySet()) {
+        for (Map.Entry<Integer, String> entry : playlistNames.entrySet()) {
             Map<String, String> headerItem = new HashMap<>();
             int id = entry.getKey();
-            headerItem.put(NAME, playlistNames.get(id));
+            headerItem.put(NAME, entry.getValue());
             headers.add(headerItem);
 
-            List<Recommendation> recList = entry.getValue();
+            List<Recommendation> recList;
+            if (recommendations.containsKey(id)) {
+                recList = recommendations.get(id);
+            } else {
+                recList = new ArrayList<>();
+            }
 
             List<Map<String, String>> children = new ArrayList<>();
             for (Recommendation rec : recList) {
@@ -143,6 +156,11 @@ public class MainActivity extends AppCompatActivity {
 
                 Map<String, String> childItem = new HashMap<>();
                 childItem.put(NAME, text);
+                children.add(childItem);
+            }
+            if (children.size() == 0) {
+                Map<String, String> childItem = new HashMap<>();
+                childItem.put(NAME, "No recommendations available yet.");
                 children.add(childItem);
             }
             childData.add(children);
