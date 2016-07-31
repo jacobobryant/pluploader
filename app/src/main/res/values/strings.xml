@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Playlist Uploader</string>
+    <string name="app_name">Music Recommmender</string>
     <string name="consent_dialog_msg"><![CDATA[<p>This app is part of a research study to improve music
         recommendation systems. Please read the terms of this study and additional information
         about your role as a research participant <a href="http://192.34.57.201/consent.pdf">here</a>.</p>
@@ -8,4 +8,5 @@
         copy of the above consent agreement and desire of your own free will to participate in this
         study.</p>]]></string>
     <string name="short_consent"><![CDATA[Hello <a href="http://google.com">there</a>]]></string>
+    <string name="crash_toast_text">Unexpected crash — an error report has been sent. #sorryaboutthat</string>
 </resources>

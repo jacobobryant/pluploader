@@ -1,4 +1,4 @@
-package com.jacobobryant.playlistuploader;
+package com.jacobobryant.musicrecommender;
 
 import android.app.Service;
 import android.content.Intent;

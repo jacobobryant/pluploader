@@ -1,4 +1,4 @@
-package com.jacobobryant.playlistuploader;
+package com.jacobobryant.musicrecommender;
 
 public class Recommendation {
     public String title;

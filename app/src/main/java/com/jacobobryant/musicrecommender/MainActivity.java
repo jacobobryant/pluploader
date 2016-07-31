@@ -1,8 +1,7 @@
-package com.jacobobryant.playlistuploader;
+package com.jacobobryant.musicrecommender;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
-import android.app.Dialog;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -15,14 +14,11 @@ import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.provider.MediaStore;
-import android.support.v4.app.DialogFragment;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.text.Html;
-import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.method.LinkMovementMethod;
-import android.text.util.Linkify;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -46,48 +42,6 @@ public class MainActivity extends AppCompatActivity {
     public static final String IP = "192.34.57.201";
     Account mAccount;
 
-    public static class ConsentDialog extends DialogFragment {
-        Dialog dialog;
-
-        @Override
-        public Dialog onCreateDialog(Bundle savedInstanceState) {
-            //String msg = getActivity().getResources().getString(R.string.consent_dialog_msg);
-            final SpannableString msg = new SpannableString(
-                    getActivity().getResources().getString(R.string.consent_dialog_msg));
-            Linkify.addLinks(msg, Linkify.ALL);
-
-            //TextView tv = new TextView(getActivity());
-            //tv.setMovementMethod(LinkMovementMethod.getInstance());
-            //tv.setText(R.string.consent_dialog_msg);
-
-            AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-            builder.setTitle("Consent Agreement")
-                   //.setView(tv)
-                   .setMessage(msg)
-                   .setPositiveButton("Accept", new DialogInterface.OnClickListener() {
-                       public void onClick(DialogInterface dialog, int id) {
-                           ((MainActivity) getActivity()).setConsentGiven();
-                       }
-                   })
-                   .setNegativeButton("Decline", new DialogInterface.OnClickListener() {
-                       public void onClick(DialogInterface dialog, int id) { }
-                   });
-            this.dialog = builder.create();
-            return this.dialog;
-        }
-
-        @Override
-        public void onStart() {
-            ((TextView)this.dialog.findViewById(android.R.id.message))
-                    .setMovementMethod(LinkMovementMethod.getInstance());
-        }
-
-        //public void setMovement() {
-        //    ((TextView)this.dialog.findViewById(android.R.id.message))
-        //            .setMovementMethod(LinkMovementMethod.getInstance());
-        //}
-    }
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -96,6 +50,8 @@ public class MainActivity extends AppCompatActivity {
         if (consentGiven()) {
             mAccount = CreateSyncAccount(this);
             show();
+        } else {
+            getConsent();
         }
     }
 
@@ -233,12 +189,6 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         registerReceiver(syncFinishedReceiver,
                 new IntentFilter("com.jacobobryant.playlistuploader.SYNC_FINISHED"));
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-
-        if (prefs.getBoolean("first_run", true)) {
-            getConsent();
-            prefs.edit().putBoolean("first_run", false).commit();
-        }
     }
 
     @Override
@@ -248,24 +198,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     void getConsent() {
-        //ConsentDialog newFragment = new ConsentDialog();
-        //((TextView)newFragment.findViewById(android.R.id.message)).setMovementMethod(LinkMovementMethod.getInstance//());
-		//myMethod();
-        //newFragment.show(getSupportFragmentManager(), "Consent");
-        //newFragment.setMovement();
-        //AlertDialog d = makeDialog();
-        //d.show();
-
-        // Make the textview clickable. Must be called after show()
-        //((TextView)d.findViewById(android.R.id.message)).setMovementMethod(LinkMovementMethod.getInstance());
-
-        //Intent intent = new Intent(Intent.ACTION_VIEW,
-        //        Uri.parse("http://" + IP + "/consent.pdf"));
-        //startActivity(intent);
-
         Spanned msg = Html.fromHtml(
                 getResources().getString(R.string.consent_dialog_msg));
-                //"Hello <a href=\"http://google.com\">there</a>");
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Consent Agreement")
@@ -276,7 +210,9 @@ public class MainActivity extends AppCompatActivity {
                    }
                })
                .setNegativeButton("Decline", new DialogInterface.OnClickListener() {
-                   public void onClick(DialogInterface dialog, int id) { }
+                   public void onClick(DialogInterface dialog, int id) {
+                       finish();
+                   }
                });
 
         AlertDialog alertDialog = builder.create();
@@ -292,32 +228,8 @@ public class MainActivity extends AppCompatActivity {
 
     void setConsentGiven() {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        //prefs.edit().putBoolean("consent_given", true).commit();
-        Toast.makeText(this, "consent given: " + consentGiven(), Toast.LENGTH_LONG).show();
-        //mAccount = CreateSyncAccount(this);
-        //sync();
+        prefs.edit().putBoolean("consent_given", true).commit();
+        mAccount = CreateSyncAccount(this);
+        sync();
     }
-
-    //// Linkify the message
-    //AlertDialog makeDialog() {
-    //    final SpannableString msg = new SpannableString(
-    //            getResources().getString(R.string.consent_dialog_msg));
-    //    Linkify.addLinks(msg, Linkify.ALL);
-
-    //    final AlertDialog d = new AlertDialog.Builder(this)
-    //            .setTitle("Consent Agreement")
-    //            .setMessage(msg)
-    //            .setPositiveButton("Accept", new DialogInterface.OnClickListener() {
-    //                public void onClick(DialogInterface dialog, int id) {
-    //                    setConsentGiven();
-    //                }
-    //            })
-    //            .setNegativeButton("Decline", new DialogInterface.OnClickListener() {
-    //                public void onClick(DialogInterface dialog, int id) { }
-    //            })
-    //            .create();
-
-    //    return d;
-    //}
-
 }
