@@ -184,6 +184,9 @@ public class MainActivity extends AppCompatActivity {
                     getConsent();
                 }
                 return true;
+            case R.id.action_info:
+                showInfoDialog();
+                return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -198,6 +201,7 @@ public class MainActivity extends AppCompatActivity {
     private BroadcastReceiver syncFinishedReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            Toast.makeText(context, "Recommendations updated", Toast.LENGTH_SHORT).show();
             show();
         }
     };
@@ -249,5 +253,22 @@ public class MainActivity extends AppCompatActivity {
         prefs.edit().putBoolean("consent_given", true).commit();
         mAccount = CreateSyncAccount(this);
         sync();
+    }
+
+    void showInfoDialog() {
+        Spanned msg = Html.fromHtml(
+                getResources().getString(R.string.info_dialog_msg));
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("How it works")
+               .setMessage(msg)
+               .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                   public void onClick(DialogInterface dialog, int id) { }
+               });
+
+        AlertDialog alertDialog = builder.create();
+        alertDialog.show();
+        TextView msgTxt = (TextView) alertDialog.findViewById(android.R.id.message);
+        msgTxt.setMovementMethod(LinkMovementMethod.getInstance());
     }
 }

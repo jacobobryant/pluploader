@@ -7,6 +7,18 @@
         <p>By continuing, you acknowledge that you have read, understood, and received a
         copy of the above consent agreement and desire of your own free will to participate in this
         study.</p>]]></string>
+<string name="info_dialog_msg"><![CDATA[<p>This app uploads your playlists to a server. The
+        server compares them with playlists from other users and sends back a list of
+        recommendations. Each recommended song is selected based on how similar it is to one of
+        your playlists. The recommendations are automatically refreshed every seven days.</p>
+
+        <p>Currently, the app doesn&#8217;t retrieve any playlists you may have in Spotify, Google
+        Music, Amazon Music or any other cloud music services. I&#8217;m planning to change that
+        soon.</p>
+
+        <p>Thanks for contributing to our research project by using this app. Please
+        <a href="mailto:jacobobryant7@gmail.com">send me an email</a> with any feedback you have.
+        </p>]]></string>
     <string name="short_consent"><![CDATA[Hello <a href="http://google.com">there</a>]]></string>
     <string name="crash_toast_text">Unexpected crash — an error report has been sent. #sorryaboutthat</string>
 </resources>
