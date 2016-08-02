@@ -52,7 +52,9 @@
             android:exported="false"
             android:syncable="true" />
 
-        <activity android:name=".ConsentActivity"></activity>
+        <activity
+            android:name="com.spotify.sdk.android.authentication.LoginActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
     </application>
 
 </manifest>

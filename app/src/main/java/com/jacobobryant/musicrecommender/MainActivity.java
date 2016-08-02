@@ -29,11 +29,24 @@ import android.widget.SimpleExpandableListAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.spotify.sdk.android.authentication.AuthenticationClient;
+import com.spotify.sdk.android.authentication.AuthenticationRequest;
+import com.spotify.sdk.android.authentication.AuthenticationResponse;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+
+import kaaes.spotify.webapi.android.SpotifyApi;
+import kaaes.spotify.webapi.android.SpotifyCallback;
+import kaaes.spotify.webapi.android.SpotifyError;
+import kaaes.spotify.webapi.android.SpotifyService;
+import kaaes.spotify.webapi.android.models.Pager;
+import kaaes.spotify.webapi.android.models.PlaylistSimple;
+import kaaes.spotify.webapi.android.models.PlaylistTrack;
+import retrofit.client.Response;
 
 public class MainActivity extends AppCompatActivity {
     public static final String TAG = "PlaylistUploader";
@@ -41,6 +54,9 @@ public class MainActivity extends AppCompatActivity {
     public static final String ACCOUNT_TYPE = "com.jacobobryant";
     public static final String ACCOUNT = "mycoolaccount";
     public static final String IP = "192.34.57.201";
+    private static final String SPOTIFY_CLIENT_ID = "ce0589fdfe4a4c978dd89f24b0a4b4bd";
+    private static final String REDIRECT_URI = "musicrecommender://spotifycallback";
+    private static final int REQUEST_CODE = 666;
     Account mAccount;
 
     @Override
@@ -187,6 +203,9 @@ public class MainActivity extends AppCompatActivity {
             case R.id.action_info:
                 showInfoDialog();
                 return true;
+            case R.id.action_spotify:
+                spotifyLogin();
+                return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -270,5 +289,73 @@ public class MainActivity extends AppCompatActivity {
         alertDialog.show();
         TextView msgTxt = (TextView) alertDialog.findViewById(android.R.id.message);
         msgTxt.setMovementMethod(LinkMovementMethod.getInstance());
+    }
+
+
+    void spotifyLogin() {
+        Log.d(TAG, "spotifyLogin()");
+        AuthenticationRequest.Builder builder = new AuthenticationRequest.Builder(
+                SPOTIFY_CLIENT_ID, AuthenticationResponse.Type.TOKEN, REDIRECT_URI);
+        builder.setScopes(new String[]{"user-read-private"});
+        AuthenticationRequest request = builder.build();
+        AuthenticationClient.openLoginActivity(this, REQUEST_CODE, request);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
+        super.onActivityResult(requestCode, resultCode, intent);
+        Log.d(TAG, "onActivityResult()");
+        if (requestCode == REQUEST_CODE) {
+            Log.d(TAG, "correct request code");
+            AuthenticationResponse response = AuthenticationClient.getResponse(resultCode, intent);
+            Log.d(TAG, response.getType().toString());
+            if (response.getType() == AuthenticationResponse.Type.TOKEN) {
+                Log.d(TAG, "access token: " + response.getAccessToken());
+                getSpotifyPlaylists(response.getAccessToken());
+            }
+        }
+    }
+
+
+    void getSpotifyPlaylists(String token) {
+        SpotifyApi api = new SpotifyApi();
+        api.setAccessToken(token);
+        final SpotifyService spotify = api.getService();
+
+		spotify.getMyPlaylists(new SpotifyCallback<Pager<PlaylistSimple>>() {
+			@Override
+			public void success(Pager<PlaylistSimple> pager, Response response) {
+                Log.d(TAG, "got spotify playlists successfully");
+                for (PlaylistSimple list : pager.items) {
+                    String[] parts = list.tracks.href.split("/");
+                    String userId = parts[parts.length - 4];
+                    String playlistId = parts[parts.length - 2];
+                    Log.d(TAG, "userid=" + userId + ", playlistId=" + playlistId);
+                    getSpotifyTracks(spotify, userId, playlistId);
+                }
+			}
+
+			@Override
+			public void failure(SpotifyError error) {
+			}
+		});
+    }
+
+    void getSpotifyTracks(SpotifyService spotify, String userId, String playlistId) {
+        spotify.getPlaylistTracks(userId, playlistId, new SpotifyCallback<Pager<PlaylistTrack>>() {
+            @Override
+            public void success(Pager<PlaylistTrack> pager, Response response) {
+                Log.d(TAG, "got spotify tracks successfully");
+                for (PlaylistTrack track : pager.items) {
+                    Log.d(TAG, "track name: " + track.track.name);
+                    Log.d(TAG, "album name: " + track.track.album.name);
+                    Log.d(TAG, "artist name: " + track.track.artists.get(0).name);
+                }
+            }
+
+            @Override
+            public void failure(SpotifyError error) {
+            }
+        });
     }
 }

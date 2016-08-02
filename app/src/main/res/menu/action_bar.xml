@@ -8,4 +8,7 @@
           android:icon="@drawable/ic_autorenew_white_48dp"
           android:title="refresh"
           app:showAsAction="ifRoom" />
+    <item android:id="@+id/action_spotify"
+          android:title="spotify"
+          app:showAsAction="ifRoom" />
 </menu>
