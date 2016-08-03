@@ -13,7 +13,6 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
-import android.provider.MediaStore;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.text.Html;
@@ -38,19 +37,11 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-
-import kaaes.spotify.webapi.android.SpotifyApi;
-import kaaes.spotify.webapi.android.SpotifyCallback;
-import kaaes.spotify.webapi.android.SpotifyError;
-import kaaes.spotify.webapi.android.SpotifyService;
-import kaaes.spotify.webapi.android.models.Pager;
-import kaaes.spotify.webapi.android.models.PlaylistSimple;
-import kaaes.spotify.webapi.android.models.PlaylistTrack;
-import retrofit.client.Response;
+import java.util.TreeMap;
 
 public class MainActivity extends AppCompatActivity {
     public static final String TAG = "PlaylistUploader";
-    public static final String AUTHORITY = "com.jacobobryant.playlistuploader";
+    public static final String AUTHORITY = "com.jacobobryant.musicrecommender";
     public static final String ACCOUNT_TYPE = "com.jacobobryant";
     public static final String ACCOUNT = "mycoolaccount";
     public static final String IP = "192.34.57.201";
@@ -77,12 +68,12 @@ public class MainActivity extends AppCompatActivity {
         Account newAccount = new Account(ACCOUNT, ACCOUNT_TYPE);
         AccountManager accountManager = (AccountManager) context.getSystemService(ACCOUNT_SERVICE);
         if (accountManager.addAccountExplicitly(newAccount, null, null)) {
-            Log.d(TAG, "setting sync stuff");
+            Log.d(TAG, "creating new account");
             ContentResolver.setIsSyncable(newAccount, AUTHORITY, 1);
             ContentResolver.setSyncAutomatically(newAccount, AUTHORITY, true);
         }
         ContentResolver.addPeriodicSync(newAccount, AUTHORITY, Bundle.EMPTY, SYNC_INTERVAL);
-        Log.d(TAG, "account created");
+        Log.d(TAG, "returning account");
         return newAccount;
     }
 
@@ -114,69 +105,54 @@ public class MainActivity extends AppCompatActivity {
     private ExpandableListAdapter makeAdapter() {
         // load recommendations
         SQLiteDatabase db = new Database(this).getReadableDatabase();
-        Cursor result = db.rawQuery("SELECT playlist_id, title, artist, album, score " +
-                                    "FROM recommendations ORDER BY playlist_id", new String[]{});
-        Map<Integer, List<Recommendation>> recommendations = new HashMap<>();
+        Cursor result = db.rawQuery("SELECT playlist_name, title, artist, album, score " +
+                                    "FROM recommendations ORDER BY playlist_name", new String[]{});
+        Map<String, List<Recommendation>> recommendations = new TreeMap<>();
         result.moveToPosition(-1);
         while (result.moveToNext()) {
             Recommendation rec = new Recommendation();
-            int playlistId = result.getInt(0);
+            String playlistName = result.getString(0);
             rec.title = result.getString(1);
             rec.artist = result.getString(2);
             rec.album = result.getString(3);
             rec.score = result.getDouble(4);
 
-            if (!recommendations.containsKey(playlistId)) {
-                recommendations.put(playlistId, new LinkedList<Recommendation>());
+            if (!recommendations.containsKey(playlistName)) {
+                recommendations.put(playlistName, new LinkedList<Recommendation>());
             }
-            recommendations.get(playlistId).add(rec);
+            recommendations.get(playlistName).add(rec);
         }
-
-        // get playlist names
-        Map<Integer, String> playlistNames = new HashMap<>();
-        final String[] proj = {MediaStore.Audio.Playlists._ID,
-                               MediaStore.Audio.Playlists.NAME};
-        result = getContentResolver().query(
-                MediaStore.Audio.Playlists.EXTERNAL_CONTENT_URI, proj, null, null, null);
-        result.moveToPosition(-1);
-        while (result.moveToNext()) {
-            int id = result.getInt(0);
-            String name = result.getString(1);
-            playlistNames.put(id, name);
-        }
-        result.close();
 
         // put recommendations in adapter
         final String NAME = "NAME";
         List<Map<String, String>> headers = new ArrayList<>();
         List<List<Map<String, String>>> childData = new ArrayList<>();
 
-        for (Map.Entry<Integer, String> entry : playlistNames.entrySet()) {
+        for (Map.Entry<String, List<Recommendation>> entry : recommendations.entrySet()) {
+            // set header
             Map<String, String> headerItem = new HashMap<>();
-            int id = entry.getKey();
-            headerItem.put(NAME, entry.getValue());
+            String playlistName = entry.getKey();
+            headerItem.put(NAME, playlistName);
             headers.add(headerItem);
 
-            List<Recommendation> recList;
-            if (recommendations.containsKey(id)) {
-                recList = recommendations.get(id);
-            } else {
-                recList = new ArrayList<>();
-            }
-
+            // set recommendations
+            List<Recommendation> recList = entry.getValue();
             List<Map<String, String>> children = new ArrayList<>();
             for (Recommendation rec : recList) {
-                int percent = (int) (100 * (rec.score));
+                // Handle empty playlist
+                if (rec.score < 0) {
+                    Map<String, String> childItem = new HashMap<>();
+                    childItem.put(NAME, "No recommendations available yet.");
+                    children.add(childItem);
+                    break;
+                }
 
+                // Handle nonempty playlist
+                int percent = (int) (100 * (rec.score));
                 String text = rec.title + "\n" + rec.artist + " (" + percent + "%)";
 
                 Map<String, String> childItem = new HashMap<>();
                 childItem.put(NAME, text);
-                children.add(childItem);
-            }
-            if (children.size() == 0) {
-                Map<String, String> childItem = new HashMap<>();
-                childItem.put(NAME, "No recommendations available yet.");
                 children.add(childItem);
             }
             childData.add(children);
@@ -229,7 +205,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         registerReceiver(syncFinishedReceiver,
-                new IntentFilter("com.jacobobryant.playlistuploader.SYNC_FINISHED"));
+                new IntentFilter("com.jacobobryant.musicrecommender.SYNC_FINISHED"));
     }
 
     @Override
@@ -311,51 +287,12 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, response.getType().toString());
             if (response.getType() == AuthenticationResponse.Type.TOKEN) {
                 Log.d(TAG, "access token: " + response.getAccessToken());
-                getSpotifyPlaylists(response.getAccessToken());
+
+                SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
+                SharedPreferences.Editor editor = settings.edit();
+                editor.putString("spotify_token", response.getAccessToken());
+                editor.commit();
             }
         }
-    }
-
-
-    void getSpotifyPlaylists(String token) {
-        SpotifyApi api = new SpotifyApi();
-        api.setAccessToken(token);
-        final SpotifyService spotify = api.getService();
-
-		spotify.getMyPlaylists(new SpotifyCallback<Pager<PlaylistSimple>>() {
-			@Override
-			public void success(Pager<PlaylistSimple> pager, Response response) {
-                Log.d(TAG, "got spotify playlists successfully");
-                for (PlaylistSimple list : pager.items) {
-                    String[] parts = list.tracks.href.split("/");
-                    String userId = parts[parts.length - 4];
-                    String playlistId = parts[parts.length - 2];
-                    Log.d(TAG, "userid=" + userId + ", playlistId=" + playlistId);
-                    getSpotifyTracks(spotify, userId, playlistId);
-                }
-			}
-
-			@Override
-			public void failure(SpotifyError error) {
-			}
-		});
-    }
-
-    void getSpotifyTracks(SpotifyService spotify, String userId, String playlistId) {
-        spotify.getPlaylistTracks(userId, playlistId, new SpotifyCallback<Pager<PlaylistTrack>>() {
-            @Override
-            public void success(Pager<PlaylistTrack> pager, Response response) {
-                Log.d(TAG, "got spotify tracks successfully");
-                for (PlaylistTrack track : pager.items) {
-                    Log.d(TAG, "track name: " + track.track.name);
-                    Log.d(TAG, "album name: " + track.track.album.name);
-                    Log.d(TAG, "artist name: " + track.track.artists.get(0).name);
-                }
-            }
-
-            @Override
-            public void failure(SpotifyError error) {
-            }
-        });
     }
 }

@@ -53,6 +53,11 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManagerFactory;
 
+import kaaes.spotify.webapi.android.SpotifyApi;
+import kaaes.spotify.webapi.android.SpotifyService;
+import kaaes.spotify.webapi.android.models.Pager;
+import kaaes.spotify.webapi.android.models.PlaylistSimple;
+import kaaes.spotify.webapi.android.models.PlaylistTrack;
 import radams.gracenote.webapi.GracenoteException;
 import radams.gracenote.webapi.GracenoteMetadata;
 import radams.gracenote.webapi.GracenoteWebAPI;
@@ -61,9 +66,9 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     public static final String TAG = MainActivity.TAG;
     public static final String SERVER = "https://192.34.57.201";
     public static final int NOTIFY_ID = 1;
-    Context context;
     static final String CACHED_IDS_FILE = "track_id_cache";
     static final String CACHED_METADATA_FILE = "metadata_cache";
+    Context context;
     Map<Metadata, String> cachedIds;
     Map<String, Metadata> cachedMetadata;
     GracenoteWebAPI api;
@@ -126,11 +131,11 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 throw new RuntimeException(e);
             }
 
-            Log.d(MainActivity.TAG, "getting local playlists");
             List<Playlist> playlists = new LinkedList<>();
-            for (int playlistId : getPlaylistIds()) {
-                playlists.add(getPlaylist(playlistId));
-            }
+            Log.d(MainActivity.TAG, "getting local playlists yo");
+            playlists.addAll(localPlaylists());
+            Log.d(MainActivity.TAG, "getting spotify playlists");
+            playlists.addAll(spotifyPlaylists());
 
             Log.d(MainActivity.TAG, "getting recommendations");
             List<Recommendations> recommendations;
@@ -146,7 +151,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
 
         } finally {
             endProgress();
-            Intent i = new Intent("com.jacobobryant.playlistuploader.SYNC_FINISHED");
+            Intent i = new Intent("com.jacobobryant.musicrecommender.SYNC_FINISHED");
             context.sendBroadcast(i);
             Log.d(MainActivity.TAG, "saving cached objects");
             saveCachedObjects();
@@ -216,23 +221,25 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         return result.toString().trim();
     }
 
-    // ========== PLAYLIST IDS ==========
-    List<Integer> getPlaylistIds() {
-        List<Integer> ids = new LinkedList<>();
-        final String[] proj = {MediaStore.Audio.Playlists._ID};
+    // ========== PLAYLISTS ==========
+    List<Playlist> localPlaylists() {
+        // get playlist ids
+        List<Playlist> playlists = new LinkedList<>();
+        final String[] proj = {MediaStore.Audio.Playlists._ID,
+                               MediaStore.Audio.Playlists.NAME};
         Cursor result = context.getContentResolver().query(
                 MediaStore.Audio.Playlists.EXTERNAL_CONTENT_URI, proj, null, null, null);
         result.moveToPosition(-1);
         while (result.moveToNext()) {
             int id = result.getInt(0);
-            ids.add(id);
+            String name = result.getString(1);
+            playlists.add(getPlaylist(id, name));
         }
         result.close();
-        return ids;
+        return playlists;
     }
 
-    // ========== PLAYLIST ==========
-    Playlist getPlaylist(int playlistId) {
+    Playlist getPlaylist(int playlistId, String name) {
         final String[] proj = {
                 MediaStore.Audio.Playlists.Members.AUDIO_ID,
                 MediaStore.Audio.Playlists.Members.TITLE,
@@ -255,7 +262,57 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 Log.e(MainActivity.TAG, "Couldn't get Gracenote ID for " + title, e);
             }
         }
-        return new Playlist(tracks, playlistId);
+        return new Playlist(tracks, name, Playlist.Type.LOCAL);
+    }
+
+    List<Playlist> spotifyPlaylists() {
+        // init
+        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
+        String token = settings.getString("spotify_token", "");
+        Log.d(TAG, "spotify token: " + token);
+        if (token.equals("")) {
+            return new LinkedList<>();
+        }
+        SpotifyApi api = new SpotifyApi();
+        api.setAccessToken(token);
+        final SpotifyService spotify = api.getService();
+
+        // get playlists
+        List<Playlist> playlists = new LinkedList<>();
+        Pager<PlaylistSimple> pager = spotify.getMyPlaylists();
+        Log.d(TAG, "got spotify playlists successfully");
+        for (PlaylistSimple list : pager.items) {
+            // get ids
+            String[] parts = list.tracks.href.split("/");
+            String userId = parts[parts.length - 4];
+            String playlistId = parts[parts.length - 2];
+            Log.d(TAG, "userid=" + userId + ", playlistId=" + playlistId);
+
+            // get tracks
+            List<String> tracks = getSpotifyTracks(spotify, userId, playlistId);
+            playlists.add(new Playlist(tracks, list.name, Playlist.Type.SPOTIFY));
+        }
+        return playlists;
+    }
+
+    List<String> getSpotifyTracks(SpotifyService spotify, String userId, String playlistId) {
+        List<String> trackIds = new LinkedList<>();
+        Pager<PlaylistTrack> pager = spotify.getPlaylistTracks(userId, playlistId);
+        Log.d(TAG, "got spotify tracks successfully");
+        for (PlaylistTrack track : pager.items) {
+            try {
+                trackIds.add(getTrackId(track.track.artists.get(0).name,
+                                        track.track.album.name,
+                                        track.track.name));
+            } catch (GracenoteException e) {
+                Log.e(MainActivity.TAG, "Couldn't get Gracenote ID for " + track.track.name, e);
+            }
+
+            Log.d(TAG, "track name: " + track.track.name);
+            Log.d(TAG, "album name: " + track.track.album.name);
+            Log.d(TAG, "artist name: " + track.track.artists.get(0).name);
+        }
+        return trackIds;
     }
 
     // ========== RECOMMENDATIONS ==========
@@ -265,7 +322,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         String response = upload(json);
         List<Recommendations> recommendations = parseResponse(response);
         for (int i = 0; i < recommendations.size(); i++) {
-            recommendations.get(i).setPlaylistId(playlists.get(i).getId());
+            recommendations.get(i).setPlaylistName(playlists.get(i).getName());
         }
         return recommendations;
     }
@@ -292,7 +349,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         HttpsURLConnection conn = makeConnection(url);
 
         // set up request
-        //HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestProperty("Content-Type", "application/json");
         conn.setRequestProperty("Connection", "close");
         conn.setRequestMethod("POST");
@@ -338,7 +394,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         db.beginTransaction();
         db.execSQL("DELETE FROM recommendations");
         for (Recommendations recs : recommendations) {
-            Log.e(TAG, "storing recommendations for playlist with id: " + recs.getPlaylistId());
+            Log.d(TAG, "storing recommendations for playlist " + recs.getPlaylistName());
 
             for (Map<String, Object> recommendation : recs.getRecList()) {
                 Metadata track;
@@ -350,10 +406,15 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                     continue;
                 }
                 String score = String.valueOf(recommendation.get("score"));
-                db.execSQL("INSERT INTO recommendations (playlist_id, title, artist, " +
+                db.execSQL("INSERT INTO recommendations (playlist_name, title, artist, " +
                                 "album, score) VALUES (?, ?, ?, ?, ?)",
-                        new String[]{String.valueOf(recs.getPlaylistId()),
+                        new String[]{String.valueOf(recs.getPlaylistName()),
                                 track.track, track.artist, track.album, score});
+            }
+            if (recs.getRecList().size() == 0) {
+                db.execSQL("INSERT INTO recommendations (playlist_name, score) VALUES (?, -1)",
+                        new String[]{String.valueOf(recs.getPlaylistName())});
+
             }
         }
         db.setTransactionSuccessful();
@@ -421,15 +482,12 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         }
     }
 
-
     SSLContext makeContext() throws CertificateException, IOException, KeyStoreException,
             NoSuchAlgorithmException, KeyManagementException, NoSuchProviderException {
         // Load CAs from an InputStream
-        // (could be from a resource or ByteArrayInputStream or ...)
         CertificateFactory cf = CertificateFactory.getInstance("X.509");
         InputStream caInput = new BufferedInputStream(
                 this.context.getAssets().open("jacobobryant.com.crt"));
-        //InputStream caInput = new ByteArrayInputStream(CERT.getBytes());
 
         Certificate ca;
         try {
@@ -441,9 +499,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         // Create a KeyStore containing our trusted CAs
         String keyStoreType = KeyStore.getDefaultType();
         KeyStore keyStore = KeyStore.getInstance(keyStoreType);
-        //KeyStore keyStore = KeyStore.getInstance("BKS");
         keyStore.load(null, null);
-        //keyStore.load(caInput, "testing".getBytes());
         keyStore.setCertificateEntry("ca", ca);
 
         // Create a TrustManager that trusts the CAs in our KeyStore

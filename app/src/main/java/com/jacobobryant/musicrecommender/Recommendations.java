@@ -3,19 +3,19 @@ package com.jacobobryant.musicrecommender;
 import java.util.*;
 
 public class Recommendations {
-    private int playlistId;
+    private String playlistName;
     private List<Map<String, Object>> recList;
 
     public Recommendations(List<Map<String, Object>> recList) {
         this.recList = recList;
     }
 
-    public int getPlaylistId() {
-        return playlistId;
+    public String getPlaylistName() {
+        return playlistName;
     }
 
-    public void setPlaylistId(int playlistId) {
-        this.playlistId = playlistId;
+    public void setPlaylistName(String playlistName) {
+        this.playlistName = playlistName;
     }
 
     public List<Map<String, Object>> getRecList() {

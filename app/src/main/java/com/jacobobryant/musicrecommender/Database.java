@@ -15,7 +15,7 @@ public class Database extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE recommendations (" +
                    "_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                   "playlist_id INTEGER, " +
+                   "playlist_name TEXT, " +
                    "title TEXT, " +
                    "artist TEXT, " +
                    "album TEXT, " +
@@ -23,6 +23,7 @@ public class Database extends SQLiteOpenHelper {
     }
 
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-
+        db.execSQL("DROP TABLE recommendations");
+        onCreate(db);
     }
 }
