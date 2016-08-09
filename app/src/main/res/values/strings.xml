@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Music Recommmender</string>
+    <string name="app_name">Muskrat</string>
     <string name="consent_dialog_msg"><![CDATA[<p>This app is part of a research study to improve music
         recommendation systems. Please read the terms of this study and additional information
         about your role as a research participant <a href="http://192.34.57.201/consent.pdf">here</a>.</p>
@@ -12,13 +12,17 @@
         recommendations. Each recommended song is selected based on how similar it is to one of
         your playlists. The recommendations are automatically refreshed every seven days.</p>
 
-        <p>Currently, the app doesn&#8217;t retrieve any playlists you may have in Spotify, Google
-        Music, Amazon Music or any other cloud music services. I&#8217;m planning to change that
-        soon.</p>
+    <p>Coming soon: use playlists from other cloud music services such as Google Music and
+        Amazon Music.</p>
 
-        <p>Thanks for contributing to our research project by using this app. Please
-        <a href="mailto:jacobobryant7@gmail.com">send me an email</a> with any feedback you have.
-        </p>]]></string>
+    <p>Thanks for contributing to our research project by using this app. Your efforts will
+        enrich the lives of millions. Please consider <a
+            href="mailto:jacobobryant7@gmail.com">sending me feedback</a>. You may also review
+        the <a href="http://192.34.57.201/consent.pdf">research subject consent agreement</a>.
+    </p>]]></string>
+    <string name="firstrun_dialog_msg"><![CDATA[<p>This app can take your playlists from several
+            different places and use them to recommend new songs to you. Please select which playlists
+            you would like to use.</p>]]></string>
     <string name="short_consent"><![CDATA[Hello <a href="http://google.com">there</a>]]></string>
     <string name="crash_toast_text">Unexpected crash — an error report has been sent. #sorryaboutthat</string>
 </resources>

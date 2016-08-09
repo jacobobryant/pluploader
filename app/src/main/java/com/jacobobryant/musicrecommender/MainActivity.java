@@ -1,5 +1,6 @@
 package com.jacobobryant.musicrecommender;
 
+import android.Manifest;
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.content.BroadcastReceiver;
@@ -9,10 +10,13 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.text.Html;
@@ -78,6 +82,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void sync() {
+        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
+        if (settings.getBoolean("pref_local", true) && !isStoragePermissionGranted(this)) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 1);
+			return;
+        }
         Bundle settingsBundle = new Bundle();
         settingsBundle.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
         settingsBundle.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
@@ -179,9 +189,17 @@ public class MainActivity extends AppCompatActivity {
             case R.id.action_info:
                 showInfoDialog();
                 return true;
-            case R.id.action_spotify:
-                spotifyLogin();
+            //case R.id.action_spotify:
+            //    spotifyLogin();
+            //    return true;
+            case R.id.action_settings:
+                startActivity(new Intent(this, SettingsActivity.class));
                 return true;
+            //case R.id.action_test:
+            //    SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
+            //    Toast.makeText(this, settings.getString("spotify_token", "NOTOKEN"),
+            //            Toast.LENGTH_LONG).show();
+            //    return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -206,6 +224,13 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         registerReceiver(syncFinishedReceiver,
                 new IntentFilter("com.jacobobryant.musicrecommender.SYNC_FINISHED"));
+        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
+        if (settings.getBoolean("force_sync", false)) {
+            sync();
+            SharedPreferences.Editor editor = settings.edit();
+            editor.putBoolean("force_sync", false);
+            editor.commit();
+        }
     }
 
     @Override
@@ -247,7 +272,32 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         prefs.edit().putBoolean("consent_given", true).commit();
         mAccount = CreateSyncAccount(this);
-        sync();
+        showFirstRunDialog();
+    }
+
+    void showFirstRunDialog() {
+        Spanned msg = Html.fromHtml(
+                getResources().getString(R.string.firstrun_dialog_msg));
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Hello there")
+               .setMessage(msg)
+               .setPositiveButton("Continue", new DialogInterface.OnClickListener() {
+                   public void onClick(DialogInterface dialog, int id) {
+                        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(
+                                MainActivity.this);
+                        SharedPreferences.Editor editor = settings.edit();
+                        editor.putBoolean("force_sync", true);
+                        editor.commit();
+
+                        startActivity(new Intent(MainActivity.this, SettingsActivity.class));
+                   }
+               });
+
+        AlertDialog alertDialog = builder.create();
+        alertDialog.show();
+        TextView msgTxt = (TextView) alertDialog.findViewById(android.R.id.message);
+        msgTxt.setMovementMethod(LinkMovementMethod.getInstance());
     }
 
     void showInfoDialog() {
@@ -266,7 +316,6 @@ public class MainActivity extends AppCompatActivity {
         TextView msgTxt = (TextView) alertDialog.findViewById(android.R.id.message);
         msgTxt.setMovementMethod(LinkMovementMethod.getInstance());
     }
-
 
     void spotifyLogin() {
         Log.d(TAG, "spotifyLogin()");
@@ -292,7 +341,26 @@ public class MainActivity extends AppCompatActivity {
                 SharedPreferences.Editor editor = settings.edit();
                 editor.putString("spotify_token", response.getAccessToken());
                 editor.commit();
+                Toast.makeText(this, "Got Spotify credentials", Toast.LENGTH_LONG).show();
             }
         }
     }
+
+
+    public static boolean isStoragePermissionGranted(Context c) {
+        if (Build.VERSION.SDK_INT >= 23) {
+            return (c.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                    == PackageManager.PERMISSION_GRANTED);
+        } else {
+            return true;
+        }
+    }
+
+	@Override
+	public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+		super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+		if (grantResults[0]== PackageManager.PERMISSION_GRANTED) {
+			sync();
+		}
+	}
 }

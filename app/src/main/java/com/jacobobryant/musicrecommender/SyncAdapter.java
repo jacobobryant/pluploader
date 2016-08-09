@@ -132,7 +132,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
             }
 
             List<Playlist> playlists = new LinkedList<>();
-            Log.d(MainActivity.TAG, "getting local playlists yo");
             playlists.addAll(localPlaylists());
             Log.d(MainActivity.TAG, "getting spotify playlists");
             playlists.addAll(spotifyPlaylists());
@@ -223,6 +222,14 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
 
     // ========== PLAYLISTS ==========
     List<Playlist> localPlaylists() {
+        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
+        if (!settings.getBoolean("pref_local", true) ||
+                !MainActivity.isStoragePermissionGranted(context)) {
+            Log.d(TAG, "couldn't get local playlists");
+            return new LinkedList<>();
+        }
+        Log.d(TAG, "getting local playlists yo");
+
         // get playlist ids
         List<Playlist> playlists = new LinkedList<>();
         final String[] proj = {MediaStore.Audio.Playlists._ID,

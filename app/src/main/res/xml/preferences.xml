@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <PreferenceCategory
+        android:title="Playlist Sources" >
+        <CheckBoxPreference
+            android:key="pref_local"
+            android:title="System playlists"
+            android:defaultValue="true"/>
+        <CheckBoxPreference
+            android:key="pref_spotify"
+            android:title="Spotify"
+            android:defaultValue="false"/>
+    </PreferenceCategory>
+</PreferenceScreen>
