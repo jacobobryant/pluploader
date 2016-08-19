@@ -21,38 +21,11 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        //addPreferencesFromResource(R.xml.preferences);
-
         frag = new SettingsFragment();
         getFragmentManager().beginTransaction()
                 .replace(android.R.id.content, frag)
                 .commit();
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-
-        //PreferenceManager.getDefaultSharedPreferences(this);
-            //registerOnSharedPreferenceChangeListener(this);
-
-        //Preference button = (Preference)findPreference("pref_logout");
-        //button.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-        //    @Override
-        //    public boolean onPreferenceClick(Preference preference) {   
-        //        logout();
-        //        return true;
-        //    }
-        //});
-        //button = (Preference)findPreference("pref_resync");
-        //button.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-        //    @Override
-        //    public boolean onPreferenceClick(Preference preference) {   
-        //        resync();
-        //        return true;
-        //    }
-        //});
-        //for (String key : new String[] {TREE_LINES, LIFE_LINES, SPOUSE_LINES, MAP_TYPE}) {
-        //    ListPreference listPref = (ListPreference) findPreference(key);
-        //    listPref.setSummary(listPref.getEntry());
-        //}
-        //getActionBar().setDisplayHomeAsUpEnabled(true);
     }
 
     @Override
@@ -86,56 +59,4 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
     }
-
-    //private void resync() {
-    //    Model m = Model.singleton();
-    //    m.clear();
-    //    try {
-    //        LoginTask task = new LoginTask();
-    //        task.setFinishCallback(new Runnable() {
-    //            @Override
-    //            public void run() {
-    //                Intent intent = new Intent(SettingsActivity.this, MainActivity.class);
-    //                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-    //                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
-    //                startActivity(intent);
-    //            }
-    //        });
-    //        task.setErrorCallback(new ErrorCallback() {
-    //            public void onError(String message) {
-    //                Toast.makeText(SettingsActivity.this, message, Toast.LENGTH_SHORT).show();
-    //            }
-    //        });
-    //        task.execute();
-    //    } catch (MalformedURLException e) {
-    //        Log.e("FamilyMap", "bad url!");
-    //    }
-    //}
-
-    //private void logout() {
-    //    Log.d("FamilyMap", "logging out");
-    //    Model.singleton().clearAll();
-    //    Intent intent = new Intent(this, MainActivity.class);
-    //    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-    //    startActivity(intent);
-    //}
-
-    //@Override
-    //public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-    //    Preference pref = findPreference(key);
-    //    if (pref instanceof ListPreference) {
-    //        ListPreference listPref = (ListPreference) pref;
-    //        pref.setSummary(listPref.getEntry());
-    //    }
-    //}
-
-    //@Override
-    //public boolean onOptionsItemSelected(MenuItem item) {
-    //    switch (item.getItemId()) {
-    //        case android.R.id.home:
-    //            onBackPressed();
-    //            return true;
-    //    }
-    //    return super.onOptionsItemSelected(item);
-    //}
 }
