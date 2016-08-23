@@ -12,7 +12,7 @@
           android:title="settings"
           android:icon="@drawable/ic_settings_white_48dp"
           app:showAsAction="ifRoom" />
-      <!--<item android:id="@+id/action_test"
+    <!--<item android:id="@+id/action_test"
           android:title="test"
           app:showAsAction="ifRoom" />-->
 </menu>

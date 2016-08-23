@@ -13,7 +13,7 @@ import com.spotify.sdk.android.authentication.AuthenticationResponse;
 public class SettingsFragment extends PreferenceFragment
         implements SharedPreferences.OnSharedPreferenceChangeListener {
     private static final String SPOTIFY_CLIENT_ID = "ce0589fdfe4a4c978dd89f24b0a4b4bd";
-    private static final String REDIRECT_URI = "musicrecommender://spotifycallback";
+    public static final String REDIRECT_URI = "musicrecommender://spotifycallback";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -46,11 +46,16 @@ public class SettingsFragment extends PreferenceFragment
 
                 // Get spotify user id
                 Log.d(MainActivity.TAG, "pref_spotify clicked");
-                AuthenticationRequest.Builder builder = new AuthenticationRequest.Builder(
-                        SPOTIFY_CLIENT_ID, AuthenticationResponse.Type.TOKEN, REDIRECT_URI);
-                builder.setScopes(new String[]{"user-read-private"});
-                AuthenticationRequest request = builder.build();
-                AuthenticationClient.openLoginActivity(getActivity(), SettingsActivity.REQUEST_CODE, request);
+
+                // TODO use state thang
+                AuthenticationRequest request = new AuthenticationRequest.Builder(
+                        SPOTIFY_CLIENT_ID, AuthenticationResponse.Type.CODE, REDIRECT_URI)
+                        .setScopes(new String[]{"playlist-read-private",
+                                                "playlist-read-collaborative"})
+                        .build();
+
+                AuthenticationClient.openLoginActivity(getActivity(),
+                        SettingsActivity.REQUEST_CODE, request);
             } else {
                 Log.d(MainActivity.TAG, "clearing spotify_token");
                 Log.d(MainActivity.TAG, "current spotify token: " +
@@ -63,7 +68,7 @@ public class SettingsFragment extends PreferenceFragment
         }
     }
 
-    public void checkSpotify() {
-        ((CheckBoxPreference) findPreference("pref_spotify")).setChecked(true);
+    public void checkSpotify(boolean value) {
+        ((CheckBoxPreference) findPreference("pref_spotify")).setChecked(value);
     }
 }

@@ -1,5 +1,6 @@
 package com.jacobobryant.musicrecommender;
 
+import android.app.ProgressDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -10,13 +11,24 @@ import android.util.Log;
 import android.view.MenuItem;
 import android.widget.Toast;
 
+import com.android.volley.NetworkResponse;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
 import com.spotify.sdk.android.authentication.AuthenticationClient;
 import com.spotify.sdk.android.authentication.AuthenticationResponse;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class SettingsActivity extends AppCompatActivity {
     public static final int REQUEST_CODE = 666;
     public static final String TAG = MainActivity.TAG;
     private SettingsFragment frag;
+    private ProgressDialog dialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,17 +58,65 @@ public class SettingsActivity extends AppCompatActivity {
             Log.d(TAG, "correct request code");
             AuthenticationResponse response = AuthenticationClient.getResponse(resultCode, intent);
             Log.d(TAG, response.getType().toString());
-            if (response.getType() == AuthenticationResponse.Type.TOKEN) {
-                Log.d(TAG, "access token: " + response.getAccessToken());
+            if (response.getType() == AuthenticationResponse.Type.CODE) {
+                Log.d(TAG, "access code: " + response.getCode());
 
-                SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
-                SharedPreferences.Editor editor = settings.edit();
-                editor.putString("spotify_token", response.getAccessToken());
-                editor.putBoolean("pref_spotify", true);
-                editor.commit();
-                frag.checkSpotify();
-                Toast.makeText(this, "Got Spotify credentials", Toast.LENGTH_LONG).show();
+                Map<String, String> params = new HashMap<>();
+                params.put("auth", response.getCode());
+                params.put("redirect", SettingsFragment.REDIRECT_URI);
+
+                String url = C.SERVER + "/spotify-login";
+
+                JSONObject jsonBody = new JSONObject(params);
+                JsonObjectRequest request = new JsonObjectRequest(url, jsonBody,
+                        new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        Log.d(C.TAG, "response: " + response.toString());
+                        try {
+                            saveSpotifyTokens(response);
+                        } catch (JSONException e) {
+                            throw new RuntimeException("Couldn't get spotify credentials", e);
+                        }
+                        SettingsActivity.this.dialog.dismiss();
+                    }
+                }, new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        NetworkResponse response = error.networkResponse;
+                        StringBuilder errmsg = new StringBuilder(
+                                String.valueOf(response.statusCode));
+                        if (response != null && response.data != null) {
+                            errmsg.append(" -- ");
+                            errmsg.append(new String(response.data));
+                        }
+                        SettingsActivity.this.dialog.dismiss();
+                        SettingsActivity.this.frag.checkSpotify(false);
+                        throw new RuntimeException(errmsg.toString(), error);
+                    }
+                });
+                
+				dialog = new ProgressDialog(this);
+				dialog.setMessage("Getting access code from Spotify...");
+				dialog.show();
+
+                MyCoolQueue.get(this).add(request);
+                frag.checkSpotify(true);
             }
         }
+    }
+
+    public void saveSpotifyTokens(JSONObject response) throws JSONException {
+        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
+        SharedPreferences.Editor editor = settings.edit();
+
+        long expireTime = System.currentTimeMillis() / 1000 + response.getInt("expires_in");
+        editor.putLong("spotify_expires", expireTime);
+        editor.putString("spotify_token", response.getString("access_token"));
+        editor.putString("spotify_refresh", response.getString("refresh_token"));
+        editor.putBoolean("pref_spotify", true);
+
+        editor.commit();
+        Toast.makeText(this, "Got Spotify credentials", Toast.LENGTH_LONG).show();
     }
 }

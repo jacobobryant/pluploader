@@ -32,9 +32,16 @@ import android.widget.SimpleExpandableListAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
 import com.spotify.sdk.android.authentication.AuthenticationClient;
 import com.spotify.sdk.android.authentication.AuthenticationRequest;
 import com.spotify.sdk.android.authentication.AuthenticationResponse;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -196,13 +203,103 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(new Intent(this, SettingsActivity.class));
                 return true;
             //case R.id.action_test:
-            //    SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
-            //    Toast.makeText(this, settings.getString("spotify_token", "NOTOKEN"),
-            //            Toast.LENGTH_LONG).show();
+            //    test();
             //    return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
+
+    public void test() {
+        Log.d(C.TAG, "test()");
+        // Only one time
+        //Unirest.setObjectMapper(new ObjectMapper() {
+        //    private com.fasterxml.jackson.databind.ObjectMapper jacksonObjectMapper
+        //                = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        //    public <T> T readValue(String value, Class<T> valueType) {
+        //        try {
+        //            return jacksonObjectMapper.readValue(value, valueType);
+        //        } catch (IOException e) {
+        //            throw new RuntimeException(e);
+        //        }
+        //    }
+
+        //    public String writeValue(Object value) {
+        //        try {
+        //            return jacksonObjectMapper.writeValueAsString(value);
+        //        } catch (JsonProcessingException e) {
+        //            throw new RuntimeException(e);
+        //        }
+        //    }
+        //});
+
+        // Response to Object
+        //HttpResponse<Book> bookResponse = Unirest.get("http://httpbin.org/books/1").asObject(Book.class);
+        //Book bookObject = bookResponse.getBody();
+
+        //HttpResponse<Author> authorResponse = Unirest.get("http://httpbin.org/books/{id}/author")
+        //    .routeParam("id", bookObject.getId())
+        //    .asObject(Author.class);
+
+        //Author authorObject = authorResponse.getBody();
+
+        // Object to Json
+        //try {
+        //    HttpResponse<JsonNode> postResponse = Unirest.post(C.SERVER + "/bar")
+        //            .header("accept", "application/json")
+        //            .header("Content-Type", "application/json")
+        //            .body(new JsonNode("{\"hello\":\"there\"}"))
+        //            .asJson();
+        //    Log.d(C.TAG, "finished post request");
+        //} catch (UnirestException e) {
+        //    throw new RuntimeException(e);
+        //}
+
+        // Instantiate the RequestQueue.
+        RequestQueue queue = Volley.newRequestQueue(this);
+        String url = C.SERVER + "/bar";
+
+        // Request a string response from the provided URL.
+        JSONObject jsonBody;
+        try {
+            jsonBody = new JSONObject("{\"type\":\"example\"}");
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        JsonObjectRequest request = new JsonObjectRequest(url, jsonBody,
+                new Response.Listener<JSONObject>() {
+            @Override
+            public void onResponse(JSONObject response) {
+                Log.d(C.TAG, "response: " + response.toString());
+            }
+        }, new VolleyErrorHandler());
+        //new Response.ErrorListener() {
+        //    @Override
+        //    public void onErrorResponse(VolleyError error) {
+        //        NetworkResponse response = error.networkResponse;
+
+        //        Log.d(C.TAG, ""+response.statusCode+" "+response.data);
+        //        Log.e(C.TAG, "VolleyError", error);
+        //    }
+        //});
+
+        //StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
+        //            new Response.Listener<String>() {
+        //    @Override
+        //    public void onResponse(String response) {
+        //        Log.d(C.TAG, "response: " + response);
+        //    }
+        //}, new Response.ErrorListener() {
+        //    @Override
+        //    public void onErrorResponse(VolleyError error) {
+        //        Log.e(C.TAG, "VolleyError", error);
+        //    }
+        //});
+        //// Add the request to the RequestQueue.
+
+        queue.add(request);
+        Log.d(C.TAG, "finished test()");
     }
 
     @Override

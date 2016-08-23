@@ -12,15 +12,16 @@
         recommendations. Each recommended song is selected based on how similar it is to one of
         your playlists. The recommendations are automatically refreshed every seven days.</p>
 
-    <p>Coming soon: use playlists from other cloud music services such as Google Music and
-        Amazon Music.</p>
+    <p>Unfortunately, Google Music and Amazon Music do not allow third parties to see your playlists, so
+        only Spotify playlists (in addition to the playlists stored locally on your device) are available
+        to this app.</p>
 
-    <p>Thanks for contributing to our research project by using this app. Your efforts will
-        enrich the lives of millions. Please consider <a
+    <p>Thanks for contributing to our research project. Your efforts will enrich the lives of
+        millions. Please consider <a
             href="mailto:jacobobryant7@gmail.com">sending me feedback</a>. You may also review
         the <a href="http://192.34.57.201/consent.pdf">research subject consent agreement</a>.
     </p>]]></string>
-    <string name="firstrun_dialog_msg"><![CDATA[<p>This app can take your playlists from several
+    <string name="firstrun_dialog_msg"><![CDATA[<p>This app can take your playlists from a few
             different places and use them to recommend new songs to you. Please select which playlists
             you would like to use.</p>]]></string>
     <string name="short_consent"><![CDATA[Hello <a href="http://google.com">there</a>]]></string>
