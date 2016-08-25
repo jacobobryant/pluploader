@@ -59,6 +59,7 @@ public class SettingsActivity extends AppCompatActivity {
             AuthenticationResponse response = AuthenticationClient.getResponse(resultCode, intent);
             Log.d(TAG, response.getType().toString());
             if (response.getType() == AuthenticationResponse.Type.CODE) {
+                // TODO handle error if type isn't code
                 Log.d(TAG, "access code: " + response.getCode());
 
                 Map<String, String> params = new HashMap<>();
@@ -92,6 +93,8 @@ public class SettingsActivity extends AppCompatActivity {
                         }
                         SettingsActivity.this.dialog.dismiss();
                         SettingsActivity.this.frag.checkSpotify(false);
+                        // TODO display better error message to user.
+                        // debug this -- why does it say my client id is invalid sometimes?
                         throw new RuntimeException(errmsg.toString(), error);
                     }
                 });

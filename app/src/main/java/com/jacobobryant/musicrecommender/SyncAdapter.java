@@ -123,21 +123,21 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
             startProgress();
 
             // setup gracenote
-            try {
+            //try {
                 //api = new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG, ApiKeys.GN_USER_ID);
                 api = getGraceApi();
-            } catch (GracenoteException e) {
-                throw new RuntimeException(e);
-            }
+            //} catch (GracenoteException e) {
+            //    throw new RuntimeException(e);
+            //}
 
             // setup user id
             Log.d(C.TAG, "getting user id");
             String userId;
-            try {
+            //try {
                 userId = getUserId();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            //} catch (IOException e) {
+            //    throw new RuntimeException(e);
+            //}
 
             // get playlists
             List<Playlist> playlists = new LinkedList<>();
@@ -148,22 +148,24 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
             // upload playlists
             Log.d(C.TAG, "getting recommendations");
             List<Recommendations> recommendations;
-            try {
+            //try {
                 try {
                     recommendations = getRecommendations(playlists, userId);
                 } catch (IllegalArgumentException e) {
                     userId = resetUserId();
                     recommendations = getRecommendations(playlists, userId);
                 }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            //} catch (IOException e) {
+            //    throw new RuntimeException(e);
+            //}
 
             // store recommendations
             Log.d(C.TAG, "storing recommendations");
             storeRecommendations(recommendations);
             Log.d(C.TAG, "finished sync");
-
+        } catch (Exception e) {
+            // TODO report exception
+            throw new RuntimeException(e);
         } finally {
             // end progress notification
             endProgress();
