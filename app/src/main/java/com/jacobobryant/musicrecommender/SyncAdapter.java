@@ -118,15 +118,19 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     public void onPerformSync(Account account, Bundle extras, String authority,
                               ContentProviderClient provider, SyncResult syncResult) {
         try {
+            // start progress notification
             Log.d(C.TAG, "onPerformSync()");
             startProgress();
 
+            // setup gracenote
             try {
-                api = new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG, ApiKeys.GN_USER_ID);
+                //api = new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG, ApiKeys.GN_USER_ID);
+                api = getGraceApi();
             } catch (GracenoteException e) {
                 throw new RuntimeException(e);
             }
 
+            // setup user id
             Log.d(C.TAG, "getting user id");
             String userId;
             try {
@@ -135,11 +139,13 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 throw new RuntimeException(e);
             }
 
+            // get playlists
             List<Playlist> playlists = new LinkedList<>();
             playlists.addAll(localPlaylists());
             Log.d(C.TAG, "getting spotify playlists");
             playlists.addAll(spotifyPlaylists());
 
+            // upload playlists
             Log.d(C.TAG, "getting recommendations");
             List<Recommendations> recommendations;
             try {
@@ -153,11 +159,13 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 throw new RuntimeException(e);
             }
 
+            // store recommendations
             Log.d(C.TAG, "storing recommendations");
             storeRecommendations(recommendations);
             Log.d(C.TAG, "finished sync");
 
         } finally {
+            // end progress notification
             endProgress();
             Intent i = new Intent("com.jacobobryant.musicrecommender.SYNC_FINISHED");
             context.sendBroadcast(i);
@@ -192,11 +200,29 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         notifyManager.notify(NOTIFY_ID, notifyBuilder.build());
     }
 
-    // ========== USER ID ==========
+    // ========== USER INFO ==========
+    GracenoteWebAPI getGraceApi() throws GracenoteException {
+        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
+        String userId = settings.getString("gn_api_user_id", "");
+        if (!userId.isEmpty()) {
+            // TODO check that userid is still valid.
+            Log.d(C.TAG, "using existing gracenote id: " + userId);
+            return new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG, userId);
+        }
+        GracenoteWebAPI api = new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG);
+        userId = api.register();
+        Log.d(C.TAG, "got new gracenote id: " + userId);
+        SharedPreferences.Editor editor = settings.edit();
+        editor.putString("gn_api_user_id", userId);
+        editor.commit();
+        return api;
+    }
+
     String getUserId() throws IOException {
         SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
         String userId = settings.getString("user_id", "");
-        if (userId != "") {
+        if (!userId.isEmpty()) {
+            // TODO check that userid is still valid.
             return userId;
         }
         userId = register();
