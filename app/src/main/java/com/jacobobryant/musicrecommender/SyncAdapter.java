@@ -22,6 +22,7 @@ import com.android.volley.toolbox.JsonObjectRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.acra.ACRA;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -111,67 +112,37 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
             throw new RuntimeException("", e);
         }
 
-        Log.d(C.TAG, "finished SyncAdapter.init()");
+        if (BuildConfig.DEBUG) Log.d(C.TAG, "finished SyncAdapter.init()");
     }
 
     @Override
     public void onPerformSync(Account account, Bundle extras, String authority,
                               ContentProviderClient provider, SyncResult syncResult) {
         try {
-            // start progress notification
-            Log.d(C.TAG, "onPerformSync()");
             startProgress();
 
-            // setup gracenote
-            //try {
-                //api = new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG, ApiKeys.GN_USER_ID);
-                api = getGraceApi();
-            //} catch (GracenoteException e) {
-            //    throw new RuntimeException(e);
-            //}
+            api = getGraceApi();  // throws GracenoteException
+            String userId = getUserId();  // throws IOException
 
-            // setup user id
-            Log.d(C.TAG, "getting user id");
-            String userId;
-            //try {
-                userId = getUserId();
-            //} catch (IOException e) {
-            //    throw new RuntimeException(e);
-            //}
-
-            // get playlists
             List<Playlist> playlists = new LinkedList<>();
             playlists.addAll(localPlaylists());
-            Log.d(C.TAG, "getting spotify playlists");
             playlists.addAll(spotifyPlaylists());
 
-            // upload playlists
-            Log.d(C.TAG, "getting recommendations");
             List<Recommendations> recommendations;
-            //try {
-                try {
-                    recommendations = getRecommendations(playlists, userId);
-                } catch (IllegalArgumentException e) {
-                    userId = resetUserId();
-                    recommendations = getRecommendations(playlists, userId);
-                }
-            //} catch (IOException e) {
-            //    throw new RuntimeException(e);
-            //}
+            try {
+                recommendations = getRecommendations(playlists, userId);  // throws IOException
+            } catch (IllegalArgumentException e) {
+                // Maybe the userId is bad.
+                userId = resetUserId();
+                recommendations = getRecommendations(playlists, userId);
+            }
 
-            // store recommendations
-            Log.d(C.TAG, "storing recommendations");
             storeRecommendations(recommendations);
-            Log.d(C.TAG, "finished sync");
+            endProgress(true);
         } catch (Exception e) {
-            // TODO report exception
-            throw new RuntimeException(e);
+            ACRA.getErrorReporter().handleException(e);
+            endProgress(false);
         } finally {
-            // end progress notification
-            endProgress();
-            Intent i = new Intent("com.jacobobryant.musicrecommender.SYNC_FINISHED");
-            context.sendBroadcast(i);
-            Log.d(C.TAG, "saving cached objects");
             saveCachedObjects();
         }
     }
@@ -188,7 +159,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         notifyManager.notify(NOTIFY_ID, notifyBuilder.build());
     }
 
-    void endProgress() {
+    void endProgress(boolean success) {
         Intent intent = new Intent(context, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT);
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -197,9 +168,14 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 PendingIntent.FLAG_UPDATE_CURRENT);
 
         notifyBuilder.setProgress(0, 0, false)
-                     .setContentText("Finished getting recommendations")
+                     .setContentText(success ? "Finished getting recommendations"
+                                             : "Error, try again later #sorrysobad")
                      .setContentIntent(pintent);
         notifyManager.notify(NOTIFY_ID, notifyBuilder.build());
+
+        Intent i = new Intent("com.jacobobryant.musicrecommender.SYNC_FINISHED");
+        i.putExtra("success", success);
+        context.sendBroadcast(i);
     }
 
     // ========== USER INFO ==========
@@ -207,13 +183,12 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
         String userId = settings.getString("gn_api_user_id", "");
         if (!userId.isEmpty()) {
-            // TODO check that userid is still valid.
-            Log.d(C.TAG, "using existing gracenote id: " + userId);
+            if (BuildConfig.DEBUG) Log.d(C.TAG, "using existing gracenote id: " + userId);
             return new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG, userId);
         }
         GracenoteWebAPI api = new GracenoteWebAPI(ApiKeys.GN_CLIENT_ID, ApiKeys.GN_CLIENT_TAG);
         userId = api.register();
-        Log.d(C.TAG, "got new gracenote id: " + userId);
+        if (BuildConfig.DEBUG) Log.d(C.TAG, "got new gracenote id: " + userId);
         SharedPreferences.Editor editor = settings.edit();
         editor.putString("gn_api_user_id", userId);
         editor.commit();
@@ -224,7 +199,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
         String userId = settings.getString("user_id", "");
         if (!userId.isEmpty()) {
-            // TODO check that userid is still valid.
             return userId;
         }
         userId = register();
@@ -241,10 +215,9 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         } catch (MalformedURLException e) {
             throw new RuntimeException(e);
         }
-        Log.d(C.TAG, "opening connection to " + url.toString());
+        if (BuildConfig.DEBUG) Log.d(C.TAG, "opening connection to " + url.toString());
 
         HttpsURLConnection conn = makeConnection(url);
-        //HttpURLConnection conn = makeTestConnection(url);
 
         conn.setRequestMethod("POST");
         conn.setDoOutput(false);
@@ -272,10 +245,10 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
         if (!settings.getBoolean("pref_local", true) ||
                 !MainActivity.isStoragePermissionGranted(context)) {
-            Log.d(C.TAG, "couldn't get local playlists");
+            if (BuildConfig.DEBUG) Log.d(C.TAG, "couldn't get local playlists");
             return new LinkedList<>();
         }
-        Log.d(C.TAG, "getting local playlists yo");
+        if (BuildConfig.DEBUG) Log.d(C.TAG, "getting local playlists yo");
 
         // get playlist ids
         List<Playlist> playlists = new LinkedList<>();
@@ -313,7 +286,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 String trackId = getTrackId(artist, album, title);
                 tracks.add(trackId);
             } catch (GracenoteException e) {
-                Log.e(C.TAG, "Couldn't get Gracenote ID for " + title, e);
+                if (BuildConfig.DEBUG) Log.e(C.TAG, "Couldn't get Gracenote ID for " + title, e);
             }
         }
         return new Playlist(tracks, name, Playlist.Type.LOCAL);
@@ -322,9 +295,8 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     List<Playlist> spotifyPlaylists() {
         // init
         SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
-        //String token = settings.getString("spotify_token", "");
         String token = getSpotifyToken();
-        Log.d(C.TAG, "spotify token: " + token);
+        if (BuildConfig.DEBUG) Log.d(C.TAG, "spotify token: " + token);
         if (token.equals("")) {
             return new LinkedList<>();
         }
@@ -335,16 +307,16 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         // get playlists
         List<Playlist> playlists = new LinkedList<>();
         Pager<PlaylistSimple> pager = spotify.getMyPlaylists();
-        Log.d(C.TAG, "got spotify playlists successfully");
+        if (BuildConfig.DEBUG) Log.d(C.TAG, "got spotify playlists successfully");
         for (PlaylistSimple list : pager.items) {
             // get ids
             String[] parts = list.tracks.href.split("/");
             String userId = parts[parts.length - 4];
             String playlistId = parts[parts.length - 2];
-            Log.d(C.TAG, "userid=" + userId + ", playlistId=" + playlistId);
+            if (BuildConfig.DEBUG) Log.d(C.TAG, "userid=" + userId + ", playlistId=" + playlistId);
 
             if (userId.equals("spotifydiscover")) {
-                Log.d(C.TAG, "skipping spotify discover playlist");
+                if (BuildConfig.DEBUG) Log.d(C.TAG, "skipping spotify discover playlist");
                 continue;
             }
 
@@ -357,7 +329,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
 
     String getSpotifyToken() {
         tokenIsValid = true;
-        Log.d(C.TAG, "getting spotify token");
+        if (BuildConfig.DEBUG) Log.d(C.TAG, "getting spotify token");
         SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
         String access = settings.getString("spotify_token", "");
 
@@ -366,7 +338,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         } else {
             long expireTime = settings.getLong("spotify_expires", 0);
             if (System.currentTimeMillis() / 1000 > expireTime) {
-                Log.d(C.TAG, "refreshing spotify token");
+                if (BuildConfig.DEBUG) Log.d(C.TAG, "refreshing spotify token");
                 tokenIsValid = false;
                 refreshSpotifyToken();
             }
@@ -392,7 +364,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         Map<String, String> params = new HashMap<>();
         params.put("refresh", settings.getString("spotify_refresh", ""));
 
-        //RequestQueue queue = Volley.newRequestQueue(context);
         String url = C.SERVER + "/spotify-refresh";
 
         JSONObject jsonBody = new JSONObject(params);
@@ -400,7 +371,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject response) {
-                Log.d(C.TAG, "response: " + response.toString());
+                if (BuildConfig.DEBUG) Log.d(C.TAG, "response: " + response.toString());
                 try {
                     saveSpotifyToken(response);
                 } catch (JSONException e) {
@@ -408,7 +379,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 }
             }
         }, new VolleyErrorHandler());
-        //queue.add(request);
         MyCoolQueue.get(context).add(request);
     }
 
@@ -427,19 +397,19 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     List<String> getSpotifyTracks(SpotifyService spotify, String userId, String playlistId) {
         List<String> trackIds = new LinkedList<>();
         Pager<PlaylistTrack> pager = spotify.getPlaylistTracks(userId, playlistId);
-        Log.d(C.TAG, "got spotify tracks successfully");
+        if (BuildConfig.DEBUG) Log.d(C.TAG, "got spotify tracks successfully");
         for (PlaylistTrack track : pager.items) {
             try {
                 trackIds.add(getTrackId(track.track.artists.get(0).name,
                                         track.track.album.name,
                                         track.track.name));
             } catch (GracenoteException e) {
-                Log.e(C.TAG, "Couldn't get Gracenote ID for " + track.track.name, e);
+                if (BuildConfig.DEBUG) Log.e(C.TAG, "Couldn't get Gracenote ID for " + track.track.name, e);
             }
 
-            Log.d(C.TAG, "track name: " + track.track.name);
-            Log.d(C.TAG, "album name: " + track.track.album.name);
-            Log.d(C.TAG, "artist name: " + track.track.artists.get(0).name);
+            if (BuildConfig.DEBUG) Log.d(C.TAG, "track name: " + track.track.name);
+            if (BuildConfig.DEBUG) Log.d(C.TAG, "album name: " + track.track.album.name);
+            if (BuildConfig.DEBUG) Log.d(C.TAG, "artist name: " + track.track.artists.get(0).name);
         }
         return trackIds;
     }
@@ -476,7 +446,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         }
 
         HttpsURLConnection conn = makeConnection(url);
-        //HttpURLConnection conn = makeTestConnection(url);
 
         // set up request
         conn.setRequestProperty("Content-Type", "application/json");
@@ -524,7 +493,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         db.beginTransaction();
         db.execSQL("DELETE FROM recommendations");
         for (Recommendations recs : recommendations) {
-            Log.d(C.TAG, "storing recommendations for playlist " + recs.getPlaylistName());
+            if (BuildConfig.DEBUG) Log.d(C.TAG, "storing recommendations for playlist " + recs.getPlaylistName());
 
             for (Map<String, Object> recommendation : recs.getRecList()) {
                 Metadata track;
@@ -532,7 +501,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 try {
                     track = getMetadata(trackId);
                 } catch (GracenoteException e) {
-                    Log.e(C.TAG, "couldn't lookup metadata for track id: " + trackId, e);
+                    if (BuildConfig.DEBUG) Log.e(C.TAG, "couldn't lookup metadata for track id: " + trackId, e);
                     continue;
                 }
                 String score = String.valueOf(recommendation.get("score"));
@@ -557,7 +526,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         if (cachedIds.containsKey(m)) {
             return cachedIds.get(m);
         }
-        Log.d(C.TAG, "querying gracenote db for " + title);
+        if (BuildConfig.DEBUG) Log.d(C.TAG, "querying gracenote db for " + title);
         GracenoteMetadata results = api.searchTrack(artist, album, title);
         String trackId = (String) results.getAlbum(0).get("track_gn_id");
         cachedIds.put(m, trackId);
@@ -570,7 +539,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 return cachedMetadata.get(trackId);
             }
         } catch (NullPointerException e) {
-            Log.e(C.TAG, "cachedMetadata not initialized correctly", e);
+            if (BuildConfig.DEBUG) Log.e(C.TAG, "cachedMetadata not initialized correctly", e);
             cachedMetadata = new HashMap<>();
         }
         GracenoteMetadata results = api.fetchAlbum(trackId);
@@ -609,7 +578,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
             oos.close();
             fout.close();
         } catch (IOException e) {
-            Log.e(C.TAG, "couldn't save cached object", e);
+            if (BuildConfig.DEBUG) Log.e(C.TAG, "couldn't save cached object", e);
         }
     }
 
@@ -658,9 +627,4 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         urlConnection.setHostnameVerifier(hostnameVerifier);
         return urlConnection;
     }
-
-    //HttpURLConnection makeTestConnection(URL url) throws IOException {
-    //    return (HttpURLConnection) url.openConnection();
-    //}
-    //
 }

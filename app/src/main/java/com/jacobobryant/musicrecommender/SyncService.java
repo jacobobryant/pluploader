@@ -21,7 +21,7 @@ public class SyncService extends Service {
      */
     @Override
     public void onCreate() {
-        Log.d(MainActivity.TAG, "SyncService.onCreate()");
+        if (BuildConfig.DEBUG) Log.d(MainActivity.TAG, "SyncService.onCreate()");
         /*
          * Create the sync adapter as a singleton.
          * Set the sync adapter as syncable

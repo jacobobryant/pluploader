@@ -45,7 +45,7 @@ public class SettingsFragment extends PreferenceFragment
                 ((CheckBoxPreference) findPreference(key)).setChecked(false);
 
                 // Get spotify user id
-                Log.d(MainActivity.TAG, "pref_spotify clicked");
+                if (BuildConfig.DEBUG) Log.d(MainActivity.TAG, "pref_spotify clicked");
 
                 // TODO use state thang
                 AuthenticationRequest request = new AuthenticationRequest.Builder(
@@ -57,8 +57,8 @@ public class SettingsFragment extends PreferenceFragment
                 AuthenticationClient.openLoginActivity(getActivity(),
                         SettingsActivity.REQUEST_CODE, request);
             } else {
-                Log.d(MainActivity.TAG, "clearing spotify_token");
-                Log.d(MainActivity.TAG, "current spotify token: " +
+                if (BuildConfig.DEBUG) Log.d(MainActivity.TAG, "clearing spotify_token");
+                if (BuildConfig.DEBUG) Log.d(MainActivity.TAG, "current spotify token: " +
                         prefs.getString("spotify_token", "NOTOKEN"));
 
                 SharedPreferences.Editor editor = prefs.edit();

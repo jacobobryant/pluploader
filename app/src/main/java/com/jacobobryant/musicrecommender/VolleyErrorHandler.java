@@ -12,8 +12,8 @@ public class VolleyErrorHandler implements Response.ErrorListener {
     public void onErrorResponse(VolleyError error) {
         NetworkResponse response = error.networkResponse;
         if (response != null) {
-            Log.e(C.TAG, response.statusCode + " " + response.data);
+            if (BuildConfig.DEBUG) Log.e(C.TAG, response.statusCode + " " + response.data);
         }
-        Log.e(C.TAG, "VolleyError", error);
+        if (BuildConfig.DEBUG) Log.e(C.TAG, "VolleyError", error);
     }
 }

@@ -20,7 +20,7 @@ public class MusicRecommender extends Application {
 	@Override
 	protected void attachBaseContext(Context base) {
 		super.attachBaseContext(base);
-        Log.d(MainActivity.TAG, "ACRA.init()");
+        if (BuildConfig.DEBUG) Log.d(MainActivity.TAG, "ACRA.init()");
 		ACRA.init(this);
 	}
 }

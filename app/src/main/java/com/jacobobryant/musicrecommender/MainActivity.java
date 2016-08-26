@@ -79,12 +79,12 @@ public class MainActivity extends AppCompatActivity {
         Account newAccount = new Account(ACCOUNT, ACCOUNT_TYPE);
         AccountManager accountManager = (AccountManager) context.getSystemService(ACCOUNT_SERVICE);
         if (accountManager.addAccountExplicitly(newAccount, null, null)) {
-            Log.d(TAG, "creating new account");
+            if (BuildConfig.DEBUG) Log.d(TAG, "creating new account");
             ContentResolver.setIsSyncable(newAccount, AUTHORITY, 1);
             ContentResolver.setSyncAutomatically(newAccount, AUTHORITY, true);
         }
         ContentResolver.addPeriodicSync(newAccount, AUTHORITY, Bundle.EMPTY, SYNC_INTERVAL);
-        Log.d(TAG, "returning account");
+        if (BuildConfig.DEBUG) Log.d(TAG, "returning account");
         return newAccount;
     }
 
@@ -98,7 +98,7 @@ public class MainActivity extends AppCompatActivity {
         Bundle settingsBundle = new Bundle();
         settingsBundle.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
         settingsBundle.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
-        Log.d(TAG, "calling requestSync()");
+        if (BuildConfig.DEBUG) Log.d(TAG, "calling requestSync()");
         ContentResolver.requestSync(mAccount, AUTHORITY, settingsBundle);
         Toast.makeText(this, "Getting recommendations from server...", Toast.LENGTH_LONG).show();
     }
@@ -186,7 +186,7 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.action_refresh:
-                Log.d(TAG, "refresh()");
+                if (BuildConfig.DEBUG) Log.d(TAG, "refresh()");
                 if (consentGiven()) {
                     sync();
                 } else {
@@ -196,9 +196,6 @@ public class MainActivity extends AppCompatActivity {
             case R.id.action_info:
                 showInfoDialog();
                 return true;
-            //case R.id.action_spotify:
-            //    spotifyLogin();
-            //    return true;
             case R.id.action_settings:
                 startActivity(new Intent(this, SettingsActivity.class));
                 return true;
@@ -211,50 +208,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void test() {
-        Log.d(C.TAG, "test()");
-        // Only one time
-        //Unirest.setObjectMapper(new ObjectMapper() {
-        //    private com.fasterxml.jackson.databind.ObjectMapper jacksonObjectMapper
-        //                = new com.fasterxml.jackson.databind.ObjectMapper();
-
-        //    public <T> T readValue(String value, Class<T> valueType) {
-        //        try {
-        //            return jacksonObjectMapper.readValue(value, valueType);
-        //        } catch (IOException e) {
-        //            throw new RuntimeException(e);
-        //        }
-        //    }
-
-        //    public String writeValue(Object value) {
-        //        try {
-        //            return jacksonObjectMapper.writeValueAsString(value);
-        //        } catch (JsonProcessingException e) {
-        //            throw new RuntimeException(e);
-        //        }
-        //    }
-        //});
-
-        // Response to Object
-        //HttpResponse<Book> bookResponse = Unirest.get("http://httpbin.org/books/1").asObject(Book.class);
-        //Book bookObject = bookResponse.getBody();
-
-        //HttpResponse<Author> authorResponse = Unirest.get("http://httpbin.org/books/{id}/author")
-        //    .routeParam("id", bookObject.getId())
-        //    .asObject(Author.class);
-
-        //Author authorObject = authorResponse.getBody();
-
-        // Object to Json
-        //try {
-        //    HttpResponse<JsonNode> postResponse = Unirest.post(C.SERVER + "/bar")
-        //            .header("accept", "application/json")
-        //            .header("Content-Type", "application/json")
-        //            .body(new JsonNode("{\"hello\":\"there\"}"))
-        //            .asJson();
-        //    Log.d(C.TAG, "finished post request");
-        //} catch (UnirestException e) {
-        //    throw new RuntimeException(e);
-        //}
+        if (BuildConfig.DEBUG) Log.d(C.TAG, "test()");
 
         // Instantiate the RequestQueue.
         RequestQueue queue = Volley.newRequestQueue(this);
@@ -271,35 +225,12 @@ public class MainActivity extends AppCompatActivity {
                 new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject response) {
-                Log.d(C.TAG, "response: " + response.toString());
+                if (BuildConfig.DEBUG) Log.d(C.TAG, "response: " + response.toString());
             }
         }, new VolleyErrorHandler());
-        //new Response.ErrorListener() {
-        //    @Override
-        //    public void onErrorResponse(VolleyError error) {
-        //        NetworkResponse response = error.networkResponse;
-
-        //        Log.d(C.TAG, ""+response.statusCode+" "+response.data);
-        //        Log.e(C.TAG, "VolleyError", error);
-        //    }
-        //});
-
-        //StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
-        //            new Response.Listener<String>() {
-        //    @Override
-        //    public void onResponse(String response) {
-        //        Log.d(C.TAG, "response: " + response);
-        //    }
-        //}, new Response.ErrorListener() {
-        //    @Override
-        //    public void onErrorResponse(VolleyError error) {
-        //        Log.e(C.TAG, "VolleyError", error);
-        //    }
-        //});
-        //// Add the request to the RequestQueue.
 
         queue.add(request);
-        Log.d(C.TAG, "finished test()");
+        if (BuildConfig.DEBUG) Log.d(C.TAG, "finished test()");
     }
 
     @Override
@@ -311,7 +242,9 @@ public class MainActivity extends AppCompatActivity {
     private BroadcastReceiver syncFinishedReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            Toast.makeText(context, "Recommendations updated", Toast.LENGTH_SHORT).show();
+            boolean success = intent.getBooleanExtra("success", true);
+            Toast.makeText(context, success ? "Recommendations updated"
+                    : "Error, try again later", Toast.LENGTH_SHORT).show();
             show();
         }
     };
@@ -415,7 +348,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     void spotifyLogin() {
-        Log.d(TAG, "spotifyLogin()");
+        if (BuildConfig.DEBUG) Log.d(TAG, "spotifyLogin()");
         AuthenticationRequest.Builder builder = new AuthenticationRequest.Builder(
                 SPOTIFY_CLIENT_ID, AuthenticationResponse.Type.TOKEN, REDIRECT_URI);
         builder.setScopes(new String[]{"user-read-private"});
@@ -426,13 +359,13 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
         super.onActivityResult(requestCode, resultCode, intent);
-        Log.d(TAG, "onActivityResult()");
+        if (BuildConfig.DEBUG) Log.d(TAG, "onActivityResult()");
         if (requestCode == REQUEST_CODE) {
-            Log.d(TAG, "correct request code");
+            if (BuildConfig.DEBUG) Log.d(TAG, "correct request code");
             AuthenticationResponse response = AuthenticationClient.getResponse(resultCode, intent);
-            Log.d(TAG, response.getType().toString());
+            if (BuildConfig.DEBUG) Log.d(TAG, response.getType().toString());
             if (response.getType() == AuthenticationResponse.Type.TOKEN) {
-                Log.d(TAG, "access token: " + response.getAccessToken());
+                if (BuildConfig.DEBUG) Log.d(TAG, "access token: " + response.getAccessToken());
 
                 SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
                 SharedPreferences.Editor editor = settings.edit();

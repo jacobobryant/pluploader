@@ -18,6 +18,7 @@ import com.android.volley.toolbox.JsonObjectRequest;
 import com.spotify.sdk.android.authentication.AuthenticationClient;
 import com.spotify.sdk.android.authentication.AuthenticationResponse;
 
+import org.acra.ACRA;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -53,59 +54,62 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
         super.onActivityResult(requestCode, resultCode, intent);
-        Log.d(TAG, "onActivityResult()");
+        if (BuildConfig.DEBUG) Log.d(TAG, "onActivityResult()");
         if (requestCode == REQUEST_CODE) {
-            Log.d(TAG, "correct request code");
+            if (BuildConfig.DEBUG) Log.d(TAG, "correct request code");
             AuthenticationResponse response = AuthenticationClient.getResponse(resultCode, intent);
-            Log.d(TAG, response.getType().toString());
-            if (response.getType() == AuthenticationResponse.Type.CODE) {
-                // TODO handle error if type isn't code
-                Log.d(TAG, "access code: " + response.getCode());
-
-                Map<String, String> params = new HashMap<>();
-                params.put("auth", response.getCode());
-                params.put("redirect", SettingsFragment.REDIRECT_URI);
-
-                String url = C.SERVER + "/spotify-login";
-
-                JSONObject jsonBody = new JSONObject(params);
-                JsonObjectRequest request = new JsonObjectRequest(url, jsonBody,
-                        new Response.Listener<JSONObject>() {
-                    @Override
-                    public void onResponse(JSONObject response) {
-                        Log.d(C.TAG, "response: " + response.toString());
-                        try {
-                            saveSpotifyTokens(response);
-                        } catch (JSONException e) {
-                            throw new RuntimeException("Couldn't get spotify credentials", e);
-                        }
-                        SettingsActivity.this.dialog.dismiss();
-                    }
-                }, new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        NetworkResponse response = error.networkResponse;
-                        StringBuilder errmsg = new StringBuilder(
-                                String.valueOf(response.statusCode));
-                        if (response != null && response.data != null) {
-                            errmsg.append(" -- ");
-                            errmsg.append(new String(response.data));
-                        }
-                        SettingsActivity.this.dialog.dismiss();
-                        SettingsActivity.this.frag.checkSpotify(false);
-                        // TODO display better error message to user.
-                        // debug this -- why does it say my client id is invalid sometimes?
-                        throw new RuntimeException(errmsg.toString(), error);
-                    }
-                });
-                
-				dialog = new ProgressDialog(this);
-				dialog.setMessage("Getting access code from Spotify...");
-				dialog.show();
-
-                MyCoolQueue.get(this).add(request);
-                frag.checkSpotify(true);
+            if (BuildConfig.DEBUG) Log.d(TAG, response.getType().toString());
+            if (response.getType() != AuthenticationResponse.Type.CODE) {
+                // this should never happen
+                return;
             }
+            if (BuildConfig.DEBUG) Log.d(TAG, "access code: " + response.getCode());
+
+            Map<String, String> params = new HashMap<>();
+            params.put("auth", response.getCode());
+            params.put("redirect", SettingsFragment.REDIRECT_URI);
+
+            String url = C.SERVER + "/spotify-login";
+
+            JSONObject jsonBody = new JSONObject(params);
+            JsonObjectRequest request = new JsonObjectRequest(url, jsonBody,
+                    new Response.Listener<JSONObject>() {
+                @Override
+                public void onResponse(JSONObject response) {
+                    if (BuildConfig.DEBUG) Log.d(C.TAG, "response: " + response.toString());
+                    try {
+                        saveSpotifyTokens(response);
+                    } catch (JSONException e) {
+                        throw new RuntimeException("Couldn't get spotify credentials", e);
+                    }
+                    SettingsActivity.this.dialog.dismiss();
+                }
+            }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    // TODO debug this -- why does it say my client id is invalid sometimes?
+                    NetworkResponse response = error.networkResponse;
+                    StringBuilder errmsg = new StringBuilder(
+                            String.valueOf(response.statusCode));
+                    if (response != null && response.data != null) {
+                        errmsg.append(" -- ");
+                        errmsg.append(new String(response.data));
+                    }
+                    ACRA.getErrorReporter().handleException(
+                            new RuntimeException(errmsg.toString(), error));
+                    SettingsActivity.this.dialog.dismiss();
+                    SettingsActivity.this.frag.checkSpotify(false);
+                    Toast.makeText(SettingsActivity.this, "Error from Spotify, try later",
+                            Toast.LENGTH_LONG).show();
+                }
+            });
+            
+            dialog = new ProgressDialog(this);
+            dialog.setMessage("Getting access code from Spotify...");
+            dialog.show();
+
+            MyCoolQueue.get(this).add(request);
+            frag.checkSpotify(true);
         }
     }
 
