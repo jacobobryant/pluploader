@@ -144,9 +144,8 @@ public class GracenoteWebAPI
     protected String _httpPostRequest(String url, String data)
     {
         //Log.d("PlaylistUploader", data);
-        try
-        {
-            URL u = new URL(url); 
+        try {
+            URL u = new URL(url);
             HttpURLConnection connection = (HttpURLConnection) u.openConnection();
             connection.setDoOutput(true);
             connection.setDoInput(true);
@@ -155,32 +154,30 @@ public class GracenoteWebAPI
             connection.setRequestProperty("Content-Type", "text/plain");
             connection.setRequestProperty("Charset", "utf-8");
             connection.setRequestProperty("Content-Length", "" + Integer.toString(data.getBytes().length));
-            connection.setUseCaches (false);
+            connection.setUseCaches(false);
 
             // Write the POST data
             BufferedWriter wr = new BufferedWriter(new OutputStreamWriter(connection.getOutputStream(), "UTF-8"));
             wr.write(data);
-            wr.flush(); wr.close();
+            wr.flush();
+            wr.close();
 
             // Read the output
             StringBuffer output = new StringBuffer();
             BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));
 
             String line;
-            while ((line = reader.readLine()) != null) { output.append(line); }
+            while ((line = reader.readLine()) != null) {
+                output.append(line);
+            }
 
             reader.close();
             connection.disconnect();
 
             return output.toString();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-        catch (Exception e)
-        {
-            Log.e("PlaylistUploader", "", e);
-            e.printStackTrace();
-        }
-
-        return null;
     }
 
     // This will construct the Gracenote query, adding in the authentication header, etc.
