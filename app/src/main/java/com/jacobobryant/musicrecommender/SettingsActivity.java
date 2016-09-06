@@ -29,7 +29,7 @@ public class SettingsActivity extends AppCompatActivity {
     public static final int REQUEST_CODE = 666;
     public static final String TAG = MainActivity.TAG;
     private SettingsFragment frag;
-    private ProgressDialog dialog;
+    public ProgressDialog dialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,12 +104,8 @@ public class SettingsActivity extends AppCompatActivity {
                 }
             });
             
-            dialog = new ProgressDialog(this);
-            dialog.setMessage("Getting access code from Spotify...");
-            dialog.show();
-
             MyCoolQueue.get(this).add(request);
-            frag.checkSpotify(true);
+            //frag.checkSpotify(true);
         }
     }
 
@@ -123,7 +119,10 @@ public class SettingsActivity extends AppCompatActivity {
         editor.putString("spotify_refresh", response.getString("refresh_token"));
         editor.putBoolean("pref_spotify", true);
 
+        if (BuildConfig.DEBUG) Log.d(C.TAG, "saving spotify as true");
+        settings.unregisterOnSharedPreferenceChangeListener(frag);
         editor.commit();
+        settings.registerOnSharedPreferenceChangeListener(frag);
         Toast.makeText(this, "Got Spotify credentials", Toast.LENGTH_LONG).show();
     }
 }

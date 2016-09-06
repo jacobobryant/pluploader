@@ -244,7 +244,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
     List<Playlist> localPlaylists() {
         SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
         if (!settings.getBoolean("pref_local", true) ||
-                !MainActivity.isStoragePermissionGranted(context)) {
+                !C.isStoragePermissionGranted(context)) {
             if (BuildConfig.DEBUG) Log.d(C.TAG, "couldn't get local playlists");
             return new LinkedList<>();
         }

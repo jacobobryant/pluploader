@@ -13,7 +13,6 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.v4.app.ActivityCompat;
@@ -90,7 +89,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void sync() {
         SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
-        if (settings.getBoolean("pref_local", true) && !isStoragePermissionGranted(this)) {
+        if (settings.getBoolean("pref_local", true) && !C.isStoragePermissionGranted(this)) {
             ActivityCompat.requestPermissions(this,
                     new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 1);
 			return;
@@ -256,6 +255,7 @@ public class MainActivity extends AppCompatActivity {
                 new IntentFilter("com.jacobobryant.musicrecommender.SYNC_FINISHED"));
         SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
         if (settings.getBoolean("force_sync", false)) {
+            if (BuildConfig.DEBUG) Log.d(C.TAG, "forcing a sync");
             sync();
             SharedPreferences.Editor editor = settings.edit();
             editor.putBoolean("force_sync", false);
@@ -373,16 +373,6 @@ public class MainActivity extends AppCompatActivity {
                 editor.commit();
                 Toast.makeText(this, "Got Spotify credentials", Toast.LENGTH_LONG).show();
             }
-        }
-    }
-
-
-    public static boolean isStoragePermissionGranted(Context c) {
-        if (Build.VERSION.SDK_INT >= 23) {
-            return (c.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-                    == PackageManager.PERMISSION_GRANTED);
-        } else {
-            return true;
         }
     }
 

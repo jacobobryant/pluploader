@@ -5,7 +5,7 @@
         <CheckBoxPreference
             android:key="pref_local"
             android:title="System playlists"
-            android:defaultValue="true"/>
+            android:defaultValue="false"/>
         <CheckBoxPreference
             android:key="pref_spotify"
             android:title="Spotify"
