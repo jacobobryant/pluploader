@@ -165,7 +165,7 @@ public class MainActivity extends AppCompatActivity {
 
                 // Handle nonempty playlist
                 int percent = (int) (100 * (rec.score));
-                String text = rec.title + "\n" + rec.artist + " (" + percent + "%)";
+                String text = rec.title + "\n" + rec.artist + " (" + percent + "% similar)";
 
                 Map<String, String> childItem = new HashMap<>();
                 childItem.put(NAME, text);
