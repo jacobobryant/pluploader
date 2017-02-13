@@ -426,10 +426,20 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         return recommendations;
     }
 
+    boolean needMTurkCode() {
+        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
+        String mturk_code = settings.getString("mturk_code", "");
+        return mturk_code.equals("");
+    }
+
     String getJson(List<Playlist> playlists, String uid) {
         Map<String, Object> object = new HashMap<>();
         object.put("id", uid);
         object.put("playlists", Playlist.toList(playlists));
+        if (needMTurkCode()) {
+            object.put("need-mturk-code", true);
+        }
+
         try {
             return new ObjectMapper().writeValueAsString(object);
         } catch (JsonProcessingException e) {
@@ -484,6 +494,16 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                 (List<List<Map<String, Object>>>) data.get("recommendations")) {
             recommendations.add(new Recommendations(recList));
         }
+
+        if (needMTurkCode()) {
+            String code = (String) data.get("mturk-code");
+            SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(context);
+            SharedPreferences.Editor editor = settings.edit();
+            editor.putString("mturk_code", code);
+            editor.commit();
+            Log.d(C.TAG, "mturk_code: " + code);
+        }
+
         return recommendations;
     }
 
