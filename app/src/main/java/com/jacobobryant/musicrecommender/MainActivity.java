@@ -331,8 +331,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     void showInfoDialog() {
+        // mturk code
+        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
+        String mturkCode = settings.getString("mturk_code", "");
+
         Spanned msg = Html.fromHtml(
-                getResources().getString(R.string.info_dialog_msg));
+                getResources().getString(R.string.info_dialog_msg) + mturkCode);
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("How it works")
